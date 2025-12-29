@@ -26,7 +26,6 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
 lib64/
 parts/
 sdist/
@@ -112,3 +111,4 @@ frontend/vite.config.ts.timestamp-*
 
 # extra
 backend.git.bak
+Task.txt
