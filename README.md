@@ -46,34 +46,7 @@ The evaluation focuses on **software engineering practices and evolution**, not 
 
 ---
 
-## Current status (Issue #1 scope)
-
-Issue #1 is focused on **backend project setup**, including:
-- dependency management via `uv` and `pyproject.toml`
-- a clean folder structure aligned with layered architecture
-- environment configuration via `.env` (local) + `.env.example` (template)
-- structured logging setup
-- a small `main.py` smoke test to verify config/logging
-
-### What the current backend code does
-
-- `backend/src/config.py`
-  - Defines a `Settings` object (Pydantic Settings) that loads configuration from environment variables and `.env`
-  - Provides `get_settings()` which caches settings for reuse across the app
-
-- `backend/src/logging_config.py`
-  - Provides a structured log formatter and `setup_logging()` helper
-  - Provides `get_logger()` helper for consistent logging across modules
-
-- `backend/main.py`
-  - Smoke test entry point:
-    - loads settings
-    - configures logging
-    - logs key configuration values to confirm `.env` loading works
-
----
-
-## Repo structure (today)
+## Repo structure
 
 ```
 dsh-etl-search-ai-2025/
@@ -93,14 +66,39 @@ dsh-etl-search-ai-2025/
 │   │   ├── models/
 │   │   └── infrastructure/
 │   └── tests/
-└── frontend/               # will be added in later issues
+├── frontend/
+│   ├── package.json
+│   ├── package-lock.json
+│   ├── svelte.config.js
+│   ├── tsconfig.json
+│   ├── vite.config.ts
+│   ├── components.json            # shadcn-svelte config
+│   ├── src/
+│   │   ├── app.css                # Tailwind + theme tokens
+│   │   ├── app.d.ts
+│   │   ├── app.html
+│   │   ├── lib/
+│   │   │   ├── api/
+│   │   │   ├── stores/
+│   │   │   ├── custom/
+│   │   │   ├── utils.ts
+│   │   │   └── components/
+│   │   │       └── ui/             # shadcn components (button, input, card, badge, scroll-area)
+│   │   └── routes/
+│   │       ├── +layout.svelte
+│   │       ├── +page.svelte        # smoke test page
+│   │       └── layout.css
+│   └── static/
+│       └── robots.txt
+├── docs/                           # development notes / chat logs
+└── README.md
 ```
 
 ---
 
-## Getting started (backend)
+## Getting started
 
-## Setup
+## Backend Setup
 
 ### 1. Install uv (if not already installed)
 
@@ -116,8 +114,11 @@ From the repository root:
 
 ### 2. Install dependencies
 ```bash
-uv init backend
+# uv init backend 
 cd backend
+
+# (optional) initialize project with uv if not already initialized
+# uv init
 
 # Install dependencies
 uv sync
@@ -125,7 +126,8 @@ uv sync
 
 ### 3. Configure environment
 ```bash
-cp .env.example .env
+# copy the service-specific example into backend/.env and edit values locally
+cp backend/.env.example backend/.env
 ```
 
 ### 4. Run the smoke test
@@ -134,6 +136,37 @@ uv run python main.py
 ```
 
 If successful, you should see structured log lines confirming configuration was loaded.
+
+## Frontend (SvelteKit) — Setup
+
+This project uses SvelteKit + TypeScript, Tailwind CSS and shadcn-svelte for UI components.
+
+Quick start (from repo root)
+1. Scaffold (if not already created):
+```bash
+#npx sv create frontend
+cd frontend
+npm install
+```
+
+2. Install Tailwind (if not added by scaffold):
+```bash
+npx sv add tailwindcss
+npm install
+```
+
+3. Initialize shadcn-svelte and add base components:
+```bash
+npx shadcn-svelte@latest init
+npx shadcn-svelte@latest add button input card badge scroll-area
+```
+
+4. Run dev server and verify:
+```bash
+cd frontend
+npm run dev
+# open http://localhost:5173 and confirm Tailwind styles and shadcn Button render
+```
 
 ---
 ## License

@@ -16,7 +16,7 @@ __pycache__/
 *$py.class
 
 # C extensions
-*.so
+*.so 
 
 # Distribution / packaging
 .Python
@@ -50,6 +50,7 @@ ENV/
 .env.local
 .env.*.local
 !.env.example
+!.env.test
 
 # IDE
 .idea/
@@ -89,18 +90,25 @@ Thumbs.db
 backend/data/
 
 # Node / Frontend (SvelteKit)
-node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
+frontend/node_modules/
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
+frontend/pnpm-debug.log*
 
-# SvelteKit build artifacts
-.svelte-kit/
-build/
-dist/
-.vercel/
-.netlify/
+# frontend / output # SvelteKit build artifacts
+frontend/.output
+frontend/.vercel
+frontend/.netlify
+frontend/.wrangler
+frontend/.svelte-kit
+frontend/build
+frontend/dist/
+
+# Vite
+frontend/vite.config.js.timestamp-*
+frontend/vite.config.ts.timestamp-*
+
 
 # extra
 backend.git.bak
