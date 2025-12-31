@@ -131,11 +131,22 @@ class SupportingDocDownloader:
         Returns:
             Path to cache file
         """
+        # parsed = urlparse(url)
+        # filename = Path(parsed.path).name
+
+        # if not filename:
+        #     # Generate hash-based filename if URL has no file path
+        #     filename = hashlib.md5(url.encode()).hexdigest()
+
+        # return self.cache_dir / filename
+
         parsed = urlparse(url)
         filename = Path(parsed.path).name
 
-        if not filename:
-            # Generate hash-based filename if URL has no file path
+        # Generate hash if:
+        # 1. No filename extracted, OR
+        # 2. Filename has no extension (not a real file)
+        if not filename or "." not in filename:
             filename = hashlib.md5(url.encode()).hexdigest()
 
         return self.cache_dir / filename
