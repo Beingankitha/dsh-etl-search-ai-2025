@@ -169,3 +169,44 @@ class AsyncHTTPClient:
         except aiohttp.ClientError as e:
             logger.error(f"HTTP error on GET {url}: {e}", extra={"request_id": request_id})
             raise HTTPClientError(f"HTTP error: {e}") from e
+        
+
+    async def get_bytes(self, url: str, request_id: Optional[str] = None, **kwargs) -> bytes:
+        """
+        GET request returning raw bytes (for binary files).
+
+        Args:
+            url: Request URL
+            request_id: Optional request ID for tracing
+            **kwargs: Additional aiohttp arguments
+
+        Returns:
+            Response body as bytes
+
+        Raises:
+            HTTPTimeoutError: On timeout
+            HTTPClientError: On HTTP errors
+        """
+        if not self.session:
+            raise HTTPClientError("Session not initialized. Use 'async with' context manager.")
+
+        headers = kwargs.pop("headers", {})
+        if request_id:
+            headers["X-Request-ID"] = request_id
+
+        try:
+            logger.info(f"GET (bytes) {url}", extra={"request_id": request_id})
+            async with self.session.get(url, headers=headers, **kwargs) as response:
+                response.raise_for_status()
+                data = await response.read()
+                logger.info(
+                    f"GET (bytes) {url} -> {response.status} ({len(data)} bytes)",
+                    extra={"request_id": request_id},
+                )
+                return data
+        except asyncio.TimeoutError as e:
+            logger.error(f"Timeout on GET {url}", extra={"request_id": request_id})
+            raise HTTPTimeoutError(f"Request timeout: {url}") from e
+        except aiohttp.ClientError as e:
+            logger.error(f"HTTP error on GET {url}: {e}", extra={"request_id": request_id})
+            raise HTTPClientError(f"HTTP error: {e}") from e
