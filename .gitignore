@@ -112,3 +112,6 @@ frontend/vite.config.ts.timestamp-*
 # extra
 backend.git.bak
 Task.txt
+issues.txt
+issues-x.txt
+metadata-file-identifiers.txt

@@ -93,3 +93,17 @@ class ChatResponse(BaseModel):
 
     message: ChatMessage
     sources: list[SearchResult] = Field(default_factory=list)
+
+
+class ErrorResponse(BaseModel):
+    """Standardized error response for API errors."""
+
+    model_config = ConfigDict(
+        extra="forbid",
+        str_strip_whitespace=True,
+    )
+
+    error: str = Field(..., description="Error type/code")
+    detail: str = Field(..., description="Human-readable error message")
+    code: int = Field(default=500, ge=400, le=599, description="HTTP status code")
+    request_id: str | None = Field(default=None, description="Request ID for tracing")

@@ -16,4 +16,5 @@ __all__ = [
     "ChatMessage",
     "ChatRequest",
     "ChatResponse",
+    "ErrorResponse",
 ]
