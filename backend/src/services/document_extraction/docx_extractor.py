@@ -15,7 +15,7 @@ from pathlib import Path
 from docx import Document
 
 from src.logging_config import get_logger
-from src.services.document_extractor import DocumentExtractor, DocumentExtractorError
+from .document_extractor import DocumentExtractor, DocumentExtractorError
 
 logger = get_logger(__name__)
 
