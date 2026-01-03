@@ -16,7 +16,7 @@ from typing import Optional
 from urllib.parse import urlparse
 import hashlib
 
-from src.infrastructure.http_client import AsyncHTTPClient, HTTPClientError
+from src.infrastructure import AsyncHTTPClient, HTTPClientError
 from src.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -53,11 +53,12 @@ class SupportingDocDownloader:
             max_file_size: Maximum file size to download (bytes)
         """
         self.http_client = http_client
-        self.cache_dir = cache_dir or Path("./data/supporting_docs")
+        self.cache_dir = Path(cache_dir) if isinstance(cache_dir, str) else cache_dir 
         self.max_file_size = max_file_size
 
         # Ensure cache directory exists
         self.cache_dir.mkdir(parents=True, exist_ok=True)
+        logger.info(f"SupportingDocDownloader initialized with cache_dir: {self.cache_dir}")
 
     async def download(
         self, url: str, request_id: Optional[str] = None
@@ -121,6 +122,31 @@ class SupportingDocDownloader:
             )
             raise SupportingDocDownloaderError(f"Download error: {e}") from e
 
+    async def download_batch(self, urls: list[str]) -> list[tuple[str, Path]]:
+        """
+        Download multiple files, skipping failures.
+        
+        Args:
+            urls: List of file URLs to download
+            
+        Returns:
+            List of tuples (url, path) for successfully downloaded files
+        """
+        downloaded_items = []
+        
+        for url in urls:
+            try:
+                path = await self.download(url)
+                if path:
+                    downloaded_items.append((url, path))
+            except Exception as e:
+                logger.warning(f"Failed to download {url}: {e}")
+                # Continue with next URL instead of failing
+                continue
+        
+        logger.info(f"Successfully downloaded {len(downloaded_items)}/{len(urls)} files")
+        return downloaded_items
+
     def _get_cache_path(self, url: str) -> Path:
         """
         Generate cache file path from URL.
@@ -131,15 +157,6 @@ class SupportingDocDownloader:
         Returns:
             Path to cache file
         """
-        # parsed = urlparse(url)
-        # filename = Path(parsed.path).name
-
-        # if not filename:
-        #     # Generate hash-based filename if URL has no file path
-        #     filename = hashlib.md5(url.encode()).hexdigest()
-
-        # return self.cache_dir / filename
-
         parsed = urlparse(url)
         filename = Path(parsed.path).name
 
