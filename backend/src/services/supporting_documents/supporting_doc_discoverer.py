@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import json
 import re
-from typing import Optional
+from typing import Optional, List
 from urllib.parse import urljoin, urlparse
 
 from lxml import etree
@@ -81,8 +81,9 @@ class SupportingDocDiscoverer:
             self.urls = SupportingDocURLs()
             root = etree.fromstring(xml_content.encode("utf-8"))
 
-            # Extract all onlineResource links
-            xpath = ".//gmd:onlineResource/gmd:linkage/gco:URL/text()"
+            # FIXED: Extract all linkage URLs - use gmd:URL not gco:URL
+            # ISO 19139 XML structure: gmd:linkage/gmd:URL contains the URL text
+            xpath = ".//gmd:linkage/gmd:URL/text()"
             urls = root.xpath(xpath, namespaces=self.ISO_NAMESPACES)
 
             for url in urls:
@@ -207,3 +208,88 @@ class SupportingDocDiscoverer:
 
         # Default: supporting document
         self.urls.supporting_docs.append(url)
+
+    async def discover(
+        self, 
+        identifier: str,
+        json_content: Optional[str] = None,
+        xml_content: Optional[str] = None,
+        rdf_content: Optional[str] = None
+    ) -> List[str]:
+        """
+        Discover supporting document URLs from available metadata formats.
+        
+        Tries formats in priority order:
+        1. JSON (most reliable)
+        2. XML (ISO 19139)
+        3. RDF (Turtle)
+        
+        Args:
+            identifier: Dataset identifier (for logging)
+            json_content: JSON metadata content
+            xml_content: ISO 19139 XML metadata content
+            rdf_content: RDF Turtle metadata content
+            
+        Returns:
+            List of discovered document URLs (all types combined)
+        """
+        logger.debug(f"[{identifier}] Discovering supporting documents")
+        
+        all_urls = SupportingDocURLs()
+        
+        # Try JSON first (most likely to have structured links)
+        if json_content:
+            try:
+                json_urls = await self.discover_from_json(json_content)
+                logger.debug(f"[{identifier}] JSON: Found {len(json_urls.supporting_docs)} supporting docs")
+                
+                # Combine URLs from JSON
+                all_urls.supporting_docs.extend(json_urls.supporting_docs)
+                all_urls.download_urls.extend(json_urls.download_urls)
+                all_urls.fileaccess_urls.extend(json_urls.fileaccess_urls)
+                all_urls.metadata_urls.extend(json_urls.metadata_urls)
+                
+            except Exception as e:
+                logger.warning(f"[{identifier}] JSON discovery failed: {e}")
+        
+        # Try XML if JSON didn't find anything
+        if xml_content and not all_urls.supporting_docs:
+            try:
+                xml_urls = await self.discover_from_iso_xml(xml_content)
+                logger.debug(f"[{identifier}] XML: Found {len(xml_urls.supporting_docs)} supporting docs")
+                
+                # Combine URLs from XML
+                all_urls.supporting_docs.extend(xml_urls.supporting_docs)
+                all_urls.download_urls.extend(xml_urls.download_urls)
+                all_urls.fileaccess_urls.extend(xml_urls.fileaccess_urls)
+                all_urls.metadata_urls.extend(xml_urls.metadata_urls)
+                
+            except Exception as e:
+                logger.warning(f"[{identifier}] XML discovery failed: {e}")
+        
+        # Try RDF as fallback
+        if rdf_content and not all_urls.supporting_docs:
+            try:
+                rdf_urls = await self.discover_from_rdf(rdf_content)
+                logger.debug(f"[{identifier}] RDF: Found {len(rdf_urls.supporting_docs)} supporting docs")
+                
+                # Combine URLs from RDF
+                all_urls.supporting_docs.extend(rdf_urls.supporting_docs)
+                all_urls.download_urls.extend(rdf_urls.download_urls)
+                all_urls.fileaccess_urls.extend(rdf_urls.fileaccess_urls)
+                all_urls.metadata_urls.extend(rdf_urls.metadata_urls)
+                
+            except Exception as e:
+                logger.warning(f"[{identifier}] RDF discovery failed: {e}")
+        
+        # Combine all URL types into single list
+        all_discovered_urls = (
+            all_urls.supporting_docs +
+            all_urls.download_urls +
+            all_urls.fileaccess_urls +
+            all_urls.metadata_urls
+        )
+        
+        logger.info(f"[{identifier}] Discovered {len(all_discovered_urls)} total URLs")
+        
+        return all_discovered_urls

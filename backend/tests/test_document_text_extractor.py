@@ -1,8 +1,8 @@
 import pytest
 from pathlib import Path
 
-from src.services.txt_extractor import TXTExtractor
-from src.services.document_extractor import DocumentExtractorError
+from src.services.document_extraction.txt_extractor import TXTExtractor
+from src.services.document_extraction.document_extractor import DocumentExtractorError
 
 
 @pytest.mark.asyncio

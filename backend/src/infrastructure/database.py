@@ -143,6 +143,7 @@ class Database:
                     original_content BLOB NOT NULL,
                     mime_type TEXT,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     FOREIGN KEY (dataset_id) REFERENCES datasets(id) ON DELETE CASCADE
                 )
             """)

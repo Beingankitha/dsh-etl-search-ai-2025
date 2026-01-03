@@ -13,7 +13,7 @@ from lxml import etree
 
 from src.logging_config import get_logger
 from src.models import Dataset
-from src.services.metadata_parser import MetadataParser, MetadataParserError
+from .metadata_parser import MetadataParser, MetadataParserError
 
 logger = get_logger(__name__)
 

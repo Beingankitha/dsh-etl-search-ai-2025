@@ -1,7 +1,7 @@
 import json
 import pytest
 
-from src.services.schema_org_parser import SchemaOrgParser, MetadataParserError
+from src.services.parsers.schema_org_parser import SchemaOrgParser, MetadataParserError
 
 
 SAMPLE_SCHEMA_ORG = {

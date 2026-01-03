@@ -27,13 +27,30 @@ class DatasetRepository(BaseRepository[Dataset]):
 
     def _map_row_to_entity(self, row: sqlite3.Row) -> Dataset:
         """Map database row to Dataset entity."""
+        import json
+        
+        # Deserialize JSON fields
+        topic_category = []
+        if row["topic_category"]:
+            try:
+                topic_category = json.loads(row["topic_category"])
+            except (json.JSONDecodeError, TypeError):
+                topic_category = []
+        
+        keywords = []
+        if row["keywords"]:
+            try:
+                keywords = json.loads(row["keywords"])
+            except (json.JSONDecodeError, TypeError):
+                keywords = []
+        
         return Dataset(
             id=row["id"],
             file_identifier=row["file_identifier"],
             title=row["title"],
             abstract=row["abstract"],
-            topic_category=row["topic_category"],
-            keywords=row["keywords"],
+            topic_category=topic_category,
+            keywords=keywords,
             lineage=row["lineage"],
             supplemental_info=row["supplemental_info"],
             source_format=row["source_format"],
@@ -43,12 +60,13 @@ class DatasetRepository(BaseRepository[Dataset]):
 
     def _map_entity_to_dict(self, entity: Dataset) -> Dict[str, Any]:
         """Map Dataset entity to dictionary for database insertion."""
+        import json
         return {
             "file_identifier": entity.file_identifier,
             "title": entity.title,
             "abstract": entity.abstract,
-            "topic_category": entity.topic_category,
-            "keywords": entity.keywords,
+            "topic_category": json.dumps(entity.topic_category) if entity.topic_category else None,
+            "keywords": json.dumps(entity.keywords) if entity.keywords else None,
             "lineage": entity.lineage,
             "supplemental_info": entity.supplemental_info,
             "source_format": entity.source_format,

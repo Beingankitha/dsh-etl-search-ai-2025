@@ -3,6 +3,7 @@ Application configuration using Pydantic Settings.
 Loads values from environment variables and .env file.
 """
 
+import os
 from functools import lru_cache
 from pathlib import Path
 from typing import List
@@ -18,16 +19,20 @@ class Settings(BaseSettings):
         env_file=".env",
         env_file_encoding="utf-8",
         case_sensitive=False,
+        extra="ignore", # Ignore unknown environment variables
     )
 
     # Application
     app_name: str = "CEH Dataset Discovery"
     app_env: str = "development"
+    environment: str = "development"  # Alias for app_env
     debug: bool = True
 
     # API
     api_host: str = "0.0.0.0"
     api_port: int = 8000
+    server_host: str = "0.0.0.0"  # Alias for api_host
+    server_port: int = 8000  # Alias for api_port
 
     # Database Configuration (Issue #5)
     database_path: str = "./data/datasets.db"
@@ -62,6 +67,14 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     log_file: str = "./logs/app.log"
 
+    # Distributed Tracing Configuration (Observability)
+    jaeger_host: str = "localhost"
+    jaeger_port: int = 6831
+    jaeger_enabled: bool = True
+    jaeger_service_name: str = "dsh-etl-search-ai"
+    jaeger_environment: str = "development"
+    jaeger_sample_rate: float = 1.0  # 1.0 = 100% sampling (reduce to 0.1 for production)
+
     # Metadata Extraction (Issue #4)
     metadata_formats: List[str] = ["iso19139", "json", "schema_org", "rdf"]
     extract_text_from_pdfs: bool = True
@@ -70,6 +83,11 @@ class Settings(BaseSettings):
     # Batch Processing (Issue #6)
     batch_size: int = 10
     max_concurrent_downloads: int = 5
+    
+    # ETL Configuration (Issue #6)
+    metadata_identifiers_file: str = "metadata-file-identifiers.txt"
+    etl_timeout: int = 300
+    etl_batch_size: int = 10
 
     # Field Validators
     @field_validator("metadata_formats", mode="before")
@@ -112,9 +130,13 @@ class Settings(BaseSettings):
         self.logs_dir.mkdir(parents=True, exist_ok=True)
 
 
-@lru_cache
+@lru_cache(maxsize=1)
 def get_settings() -> Settings:
     """Get cached settings singleton."""
-    settings = Settings()
-    settings.ensure_directories()
-    return settings
+    return Settings()
+
+
+# Create singleton instance - THIS IS THE KEY!
+settings = get_settings()
+
+__all__ = ["Settings", "settings", "get_settings"]

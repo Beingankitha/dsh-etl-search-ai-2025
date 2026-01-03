@@ -1,7 +1,7 @@
 import json
 import pytest
 
-from src.services.json_parser import JSONMetadataParser, MetadataParserError
+from src.services.parsers.json_parser import JSONMetadataParser, MetadataParserError
 
 
 SAMPLE_JSON = {

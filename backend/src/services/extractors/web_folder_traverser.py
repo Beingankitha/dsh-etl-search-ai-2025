@@ -15,7 +15,7 @@ import re
 from typing import Optional
 from urllib.parse import urljoin, urlparse
 
-from src.infrastructure.http_client import AsyncHTTPClient, HTTPClientError
+from src.infrastructure import AsyncHTTPClient, HTTPClientError
 from src.logging_config import get_logger
 
 logger = get_logger(__name__)
