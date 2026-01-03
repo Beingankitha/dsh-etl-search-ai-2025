@@ -2,7 +2,7 @@ import pytest
 import zipfile
 from io import BytesIO
 
-from src.services.zip_extractor import ZipExtractor, ZipExtractorError
+from src.services.extractors.zip_extractor import ZipExtractor, ZipExtractorError
 
 
 @pytest.mark.asyncio

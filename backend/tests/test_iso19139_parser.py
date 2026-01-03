@@ -1,6 +1,6 @@
 import pytest
 
-from src.services.iso19139_parser import ISO19139Parser, MetadataParserError
+from src.services.parsers.iso19139_parser import ISO19139Parser, MetadataParserError
 
 
 SAMPLE_ISO_XML = """<?xml version="1.0" encoding="UTF-8"?>

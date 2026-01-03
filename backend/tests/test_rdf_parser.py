@@ -1,6 +1,6 @@
 import pytest
 
-from src.services.rdf_parser import RDFParser, MetadataParserError
+from src.services.parsers.rdf_parser import RDFParser, MetadataParserError
 
 
 SAMPLE_TURTLE = """

@@ -3,7 +3,7 @@ import pytest
 
 
 
-from src.services.supporting_doc_discoverer import (
+from src.services.supporting_documents.supporting_doc_discoverer import (
     SupportingDocDiscoverer,
     SupportingDocDiscoveryError,
 )

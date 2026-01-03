@@ -2,7 +2,7 @@ import pytest
 from aioresponses import aioresponses
 
 from src.infrastructure.http_client import AsyncHTTPClient
-from src.services.web_folder_traverser import WebFolderTraverser
+from src.services.extractors.web_folder_traverser import WebFolderTraverser
 
 
 SAMPLE_HTML = """
