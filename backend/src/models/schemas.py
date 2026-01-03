@@ -27,6 +27,9 @@ class Dataset(BaseModel):
     supplemental_info: str | None = Field(
         default=None, description="Supplemental information / notes"
     )
+    source_format: str | None = Field(
+        default=None, description="Metadata format used for parsing (xml, json, rdf, schema_org)"
+    )
 
 
 class SearchResult(BaseModel):

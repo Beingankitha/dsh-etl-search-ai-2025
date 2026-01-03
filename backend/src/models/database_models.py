@@ -45,6 +45,7 @@ class MetadataDocument:
     original_content: bytes
     mime_type: Optional[str] = None
     created_at: Optional[str] = None
+    updated_at: Optional[str] = None
     id: Optional[int] = None
 
     def to_dict(self) -> dict:
@@ -52,6 +53,7 @@ class MetadataDocument:
         data = asdict(self)
         data.pop("id", None)
         data.pop("created_at", None)
+        data.pop("updated_at", None)
         return {k: v for k, v in data.items() if v is not None}
 
 

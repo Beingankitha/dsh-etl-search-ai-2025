@@ -11,13 +11,13 @@ import sqlite3
 from typing import Optional
 
 from src.config import get_settings
-from src.infrastructure.database import Database, DatabaseError
+from src.infrastructure import Database, DatabaseError
 from src.logging_config import get_logger
-from src.repositories.base_repository import BaseRepository
-from src.repositories.dataset_repository import DatasetRepository
-from src.repositories.metadata_document_repository import MetadataDocumentRepository
-from src.repositories.data_file_repository import DataFileRepository
-from src.repositories.supporting_document_repository import SupportingDocumentRepository
+from .base_repository import BaseRepository
+from .dataset_repository import DatasetRepository
+from .metadata_document_repository import MetadataDocumentRepository
+from .data_file_repository import DataFileRepository
+from .supporting_document_repository import SupportingDocumentRepository
 
 logger = get_logger(__name__)
 
