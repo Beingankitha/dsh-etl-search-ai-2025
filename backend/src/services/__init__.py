@@ -1,50 +1,112 @@
-"""Services module - extraction, parsing, and document processing."""
+"""Services module - extraction, parsing, and document processing.
 
-from .ceh_extractor import CEHExtractor, CEHExtractorError
-from .document_extractor import DocumentExtractor, DocumentExtractorError
-from .docx_extractor import DOCXExtractor
-from .iso19139_parser import ISO19139Parser
-from .json_parser import JSONMetadataParser
-from .metadata_parser import MetadataParser, MetadataParserError
-from .pdf_extractor import PDFExtractor
-from .rdf_parser import RDFParser
-from .schema_org_parser import SchemaOrgParser
-from .supporting_doc_discoverer import (
-    SupportingDocDiscoverer,
-    SupportingDocDiscoveryError,
-    SupportingDocURLs,
+Organized into logical submodules:
+- etl: Pipeline orchestration and error handling
+- parsers: Metadata format parsers (ISO19139, JSON, RDF, Schema.org)
+- extractors: Data extraction (CEH API, web folders, ZIP files)
+- document_extraction: Text extraction (PDF, DOCX, TXT)
+- supporting_documents: URL discovery and file downloading
+- architecture: System design documentation
+"""
+
+# ETL Module (Orchestration)
+from .etl import (
+    ETLService,
+    ETLErrorHandler,
+    RetryConfig,
+    RetryStrategy,
+    RecoverableError,
+    NonRecoverableError,
+    NetworkError,
+    ParsingError,
+    DatabaseError,
+    ValidationError,
+    AdaptiveBatchProcessor,
+    ConcurrencyOptimizer,
+    CachingBatchProcessor,
+    PerformanceMetrics,
 )
-from .supporting_doc_downloader import SupportingDocDownloader, SupportingDocDownloaderError
-from .txt_extractor import TXTExtractor
-from .web_folder_traverser import WebFolderTraverser, WebFolderTraverserError
-from .zip_extractor import ZipExtractor, ZipExtractorError
+
+# Parsers Module
+from .parsers import (
+    MetadataParser,
+    MetadataParserError,
+    ISO19139Parser,
+    JSONMetadataParser,
+    RDFParser,
+    SchemaOrgParser,
+)
+
+# Extractors Module
+from .extractors import (
+    CEHExtractor,
+    CEHExtractorError,
+    WebFolderTraverser,
+    WebFolderTraverserError,
+    ZipExtractor,
+    ZipExtractorError,
+)
+
+# Document Extraction Module
+from .document_extraction import (
+    DocumentExtractor,
+    DocumentExtractorError,
+    PDFExtractor,
+    DOCXExtractor,
+    TXTExtractor,
+    UniversalDocumentExtractor,
+)
+
+# Supporting Documents Module
+from .supporting_documents import (
+    SupportingDocDiscoverer,
+    SupportingDocURLs,
+    SupportingDocDiscoveryError,
+    SupportingDocDownloader,
+    SupportingDocDownloaderError,
+)
 
 __all__ = [
-    # Extractors
+    # ETL Module
+    "ETLService",
+    "ETLErrorHandler",
+    "RetryConfig",
+    "RetryStrategy",
+    "RecoverableError",
+    "NonRecoverableError",
+    "NetworkError",
+    "ParsingError",
+    "DatabaseError",
+    "ValidationError",
+    "AdaptiveBatchProcessor",
+    "ConcurrencyOptimizer",
+    "CachingBatchProcessor",
+    "PerformanceMetrics",
+    # Parsers Module
+    "MetadataParser",
+    "MetadataParserError",
+    "ISO19139Parser",
+    "JSONMetadataParser",
+    "RDFParser",
+    "SchemaOrgParser",
+    # Extractors Module
     "CEHExtractor",
     "CEHExtractorError",
-    # Document text extraction
+    "WebFolderTraverser",
+    "WebFolderTraverserError",
+    "ZipExtractor",
+    "ZipExtractorError",
+    # Document Extraction Module
     "DocumentExtractor",
     "DocumentExtractorError",
     "PDFExtractor",
     "DOCXExtractor",
     "TXTExtractor",
-    # Metadata parsers
-    "MetadataParser",
-    "MetadataParserError",
-    "ISO19139Parser",
-    "JSONMetadataParser",
-    "SchemaOrgParser",
-    "RDFParser",
-    # Supporting documents
+    "UniversalDocumentExtractor",
+    # Supporting Documents Module
     "SupportingDocDiscoverer",
-    "SupportingDocDiscoveryError",
     "SupportingDocURLs",
+    "SupportingDocDiscoveryError",
     "SupportingDocDownloader",
     "SupportingDocDownloaderError",
-    # Utilities
-    "ZipExtractor",
-    "ZipExtractorError",
-    "WebFolderTraverser",
-    "WebFolderTraverserError",
 ]

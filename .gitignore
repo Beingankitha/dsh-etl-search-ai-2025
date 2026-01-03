@@ -113,5 +113,7 @@ frontend/vite.config.ts.timestamp-*
 backend.git.bak
 Task.txt
 issues.txt
-issues-x.txt
 metadata-file-identifiers.txt
+docs/not-committed/
+docs/.DS_Store
+TESTING.md

@@ -2,7 +2,9 @@
 name = "dsh-etl-search-ai"
 version = "0.1.0"
 description = "CEH Dataset Discovery System with Semantic Search and AI Chat"
-readme = "README.md"
+# FIX: Remove readme = "README.md" since we're in a monorepo
+# If you want to include a readme, use a relative path to the root README
+#readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.115.0",
@@ -13,29 +15,39 @@ dependencies = [
     "chromadb>=0.5.0",
     "sentence-transformers>=3.3.0",
     "ollama>=0.4.0",
+    "typer>=0.9.0",  # FIX: Remove [all] extra - not available in newer versions
+    "click>=8.1.0",   # FIX: Add explicit click dependency (Typer uses it)
     "python-dotenv>=1.0.0",
     "lxml>=5.3.0",
     "aiosqlite>=0.20.0",
-
     "aiohttp>=3.8.0",
     "tenacity>=8.2.0",
-    "lxml>=4.9.0",
     "xmltodict>=0.13.0",
     "requests>=2.31.0",
     "rdflib>=6.3.0",  # for RDF parsing
-
     "pypdf>=3.17.0",       # PDF text extraction
     "python-docx>=0.8.11", # DOCX text extraction
     "beautifulsoup4>=4.12.0",  # HTML parsing for web traversal
+    "rich>=13.0.0",          # For Rich formatting in CLI
+    # Observability & Tracing
+    "opentelemetry-api>=1.21.0",
+    "opentelemetry-sdk>=1.21.0",
+    "opentelemetry-exporter-otlp>=0.42b0",
+    "opentelemetry-exporter-prometheus>=0.42b0",
+    "opentelemetry-instrumentation>=0.42b0",
+    "deprecated>=1.2.0",
 ]
 
 [dependency-groups]
 dev = [
     "pytest>=8.3.0",
     "pytest-asyncio>=0.24.0",
+    "pytest-cov>=4.1.0",
     "ruff>=0.8.0",
     "httpx>=0.28.0",
     "aioresponses>=0.7.8",
+    "black>=23.0.0",
+    "mypy>=1.8.0",  # Optional: for type checking
 ]
 
 [tool.ruff]
@@ -45,6 +57,32 @@ target-version = "py311"
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP"]
 
+[tool.uv]
+package = true
+
+[tool.uv.sources]
+
+[project.scripts]
+dsh-etl = "src.cli:app"
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+addopts = "-v --tb=short"
+filterwarnings = [
+    "ignore::DeprecationWarning:opentelemetry.exporter.jaeger.thrift",
+    "ignore::RuntimeWarning:unittest.mock",
+]
+
+[tool.uvicorn]
+host = "0.0.0.0"
+port = 8000
+reload = true
+log-level = "info"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src"]
