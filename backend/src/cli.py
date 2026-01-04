@@ -20,6 +20,7 @@ from rich.table import Table
 
 from src.config import settings  # FIX: Import settings INSTANCE, not Settings class
 from src.services.etl.etl_service import ETLService
+from src.services.embeddings import IndexingService
 from src.infrastructure import Database
 from src.repositories import UnitOfWork
 from src.logging_config import get_logger
@@ -434,6 +435,151 @@ def check_supporting_docs(
     console.print(f"Total Text Content Size: [green]{total_text_bytes / 1024 / 1024:.2f} MB[/green]\n")
     
     conn.close()
+
+
+@app.command()
+def index(
+    verbose: bool = typer.Option(
+        False,
+        "-v",
+        "--verbose",
+        help="Enable verbose logging (DEBUG level)"
+    ),
+    supporting_docs: bool = typer.Option(
+        True,
+        "--supporting-docs",
+        help="Index supporting documents for RAG"
+    ),
+    clear_first: bool = typer.Option(
+        False,
+        "--clear-first",
+        help="Clear vector store before indexing"
+    ),
+    limit: Optional[int] = typer.Option(
+        None,
+        "--limit",
+        "-l",
+        help="Limit number of datasets to index (for testing)"
+    ),
+):
+    """
+    Index all datasets into vector store for semantic search.
+    
+    Process:
+    1. Load datasets from SQLite database
+    2. Generate embeddings for metadata (title + abstract + keywords)
+    3. Store in ChromaDB vector database
+    4. Optionally process supporting documents for RAG
+    
+    Examples:
+        uv run python cli_main.py index --verbose
+        uv run python cli_main.py index --clear-first
+        uv run python cli_main.py index --supporting-docs --limit 10
+        uv run dsh-etl index --verbose
+    """
+    
+    if verbose:
+        logging.getLogger().setLevel(logging.DEBUG)
+        console.print("[bold cyan]✓ Verbose logging enabled (DEBUG)[/bold cyan]")
+    
+    console.print("\n[bold blue]═══════════════════════════════════════[/bold blue]")
+    console.print("[bold blue]  Vector Store Indexing Pipeline[/bold blue]")
+    console.print("[bold blue]═══════════════════════════════════════[/bold blue]\n")
+    
+    try:
+        # Initialize services
+        db = Database()
+        db.connect()
+        
+        indexing_service = IndexingService(
+            database=db,
+            extract_supporting_docs=supporting_docs
+        )
+        
+        # Clear vector store if requested
+        if clear_first:
+            console.print("[yellow]⚠  Clearing existing vector store...[/yellow]")
+            indexing_service.vector_store.clear_all()
+            console.print("[bold green]✓ Vector store cleared[/bold green]\n")
+        
+        # Run indexing pipeline
+        console.print("[cyan]▶ Starting indexing pipeline...[/cyan]\n")
+        progress = indexing_service.index_all_datasets(supporting_docs=supporting_docs)
+        
+        # Display results table
+        table = Table(title="[bold]Indexing Results[/bold]", show_header=True, header_style="bold cyan")
+        table.add_column("Metric", style="cyan")
+        table.add_column("Value", style="green")
+        table.add_column("Status", style="bold")
+        
+        table.add_row(
+            "Total Datasets in DB",
+            str(progress.total_datasets),
+            "✓" if progress.total_datasets > 0 else "✗"
+        )
+        table.add_row(
+            "Datasets Indexed",
+            str(progress.total_indexed),
+            "✓" if progress.total_indexed > 0 else "✗"
+        )
+        table.add_row(
+            "Success Rate",
+            f"{progress.success_rate:.1f}%",
+            "✓" if progress.success_rate >= 90 else "⚠"
+        )
+        
+        if supporting_docs:
+            table.add_row(
+                "Supporting Docs Processed",
+                str(progress.total_docs),
+                "✓"
+            )
+            table.add_row(
+                "Doc Chunks Indexed",
+                str(progress.total_docs_indexed),
+                "✓" if progress.total_docs_indexed > 0 else "⚠"
+            )
+        
+        if progress.errors:
+            table.add_row(
+                "Errors",
+                str(len(progress.errors)),
+                "⚠"
+            )
+        
+        if progress.duration_seconds:
+            table.add_row(
+                "Duration",
+                f"{progress.duration_seconds:.1f}s",
+                "✓"
+            )
+        
+        console.print(table)
+        
+        # Display vector store stats
+        console.print("\n[bold cyan]Vector Store Statistics:[/bold cyan]")
+        datasets_in_store = indexing_service.vector_store.get_dataset_count()
+        docs_in_store = indexing_service.vector_store.get_supporting_docs_count()
+        
+        console.print(f"  • Datasets in vector store: [green]{datasets_in_store}[/green]")
+        console.print(f"  • Doc chunks in vector store: [green]{docs_in_store}[/green]")
+        
+        # Display errors if any
+        if progress.errors:
+            console.print("\n[yellow]⚠  Errors encountered:[/yellow]")
+            for i, error in enumerate(progress.errors[:10], 1):
+                console.print(f"  {i}. {error}")
+            if len(progress.errors) > 10:
+                console.print(f"  ... and {len(progress.errors) - 10} more")
+        
+        console.print(f"\n[bold green]✓ Indexing pipeline complete![/bold green]\n")
+        
+    except Exception as e:
+        console.print(f"[bold red]✗ Indexing failed: {e}[/bold red]\n")
+        if verbose:
+            import traceback
+            traceback.print_exc()
+        raise typer.Exit(1)
 
 
 if __name__ == '__main__':
