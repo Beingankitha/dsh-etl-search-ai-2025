@@ -133,6 +133,18 @@ class Settings(BaseSettings):
         self.chroma_dir.mkdir(parents=True, exist_ok=True)
         self.logs_dir.mkdir(parents=True, exist_ok=True)
 
+    def get(self, key: str, default=None):
+        """Get configuration value by key (dict-like interface).
+        
+        Args:
+            key: Configuration key (snake_case)
+            default: Default value if key not found
+            
+        Returns:
+            Configuration value or default
+        """
+        return getattr(self, key, default)
+
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:

@@ -88,5 +88,12 @@ def setup_logging(log_level: str = "INFO", log_file_path: str = "logs/dsh_etl_se
 
 
 def get_logger(name: str) -> logging.Logger:
-    """Get a logger instance with the given name."""
+    """Get a logger instance with the given name.
+    
+    Args:
+        name: Logger name (typically __name__)
+        
+    Returns:
+        Logger instance with structured formatting
+    """
     return logging.getLogger(name)
