@@ -230,6 +230,19 @@ class BaseRepository(ABC, Generic[T]):
             logger.error(f"Get all failed: {e}")
             raise RepositoryError(f"Query failed: {e}") from e
 
+    def get_paginated(self, limit: int = 10, offset: int = 0) -> List[T]:
+        """
+        Get paginated entities (convenience alias for get_all).
+
+        Args:
+            limit: Maximum records per page
+            offset: Starting record offset
+
+        Returns:
+            List of entities for current page
+        """
+        return self.get_all(limit=limit, offset=offset)
+
     def count(self) -> int:
         """
         Get total entity count (read-only, no commit needed).
