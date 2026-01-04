@@ -66,6 +66,12 @@ from .supporting_documents import (
     SupportingDocDownloaderError,
 )
 
+# Search Module
+from .search import (
+    SearchService,
+    SearchServiceError,
+)
+
 __all__ = [
     # ETL Module
     "ETLService",
@@ -109,4 +115,7 @@ __all__ = [
     "SupportingDocDiscoveryError",
     "SupportingDocDownloader",
     "SupportingDocDownloaderError",
+    # Search Module
+    "SearchService",
+    "SearchServiceError",
 ]
