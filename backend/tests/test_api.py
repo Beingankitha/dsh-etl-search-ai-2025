@@ -100,9 +100,11 @@ class TestRootEndpoints:
         response = client.get("/")
         data = response.json()
         
-        assert "name" in data
+        assert "service" in data
         assert "version" in data
-        assert "docs" in data
+        assert "endpoints" in data
+        assert "docs" in data["endpoints"]
+        assert "health" in data["endpoints"]
 
 
 # ============================================================================

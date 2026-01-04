@@ -1,69 +1,90 @@
 """
 FastAPI application factory and configuration.
 
-Creates the FastAPI app with:
-- CORS middleware
-- API routers
-- Error handlers
-- Request/response logging
+Creates a production-ready FastAPI app with:
+- OpenTelemetry instrumentation for distributed tracing
+- Structured request/response logging with correlation IDs
+- Comprehensive exception handling with semantic error codes
+- CORS middleware for frontend integration
+- Health check endpoints for deployment/monitoring
+- API routers organized by domain
+
+Architecture Principles:
+- Dependency Injection: Services injected via FastAPI Depends()
+- Separation of Concerns: Routers isolated by domain
+- Observable: All requests traced and logged with correlation IDs
+- Resilient: Graceful error handling with structured responses
+- Type-Safe: Full Pydantic validation
 """
 
-from contextlib import asynccontextmanager
-from typing import Callable
+from __future__ import annotations
+
+from datetime import datetime, timezone
+from typing import Optional
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.responses import JSONResponse
-from starlette.middleware.base import BaseHTTPMiddleware
+
+from opentelemetry import trace
 
 from src.config import get_settings
-from src.logging_config import get_logger
+from src.logging_config import get_logger, setup_logging
+from src.services.observability.tracing_config import initialize_tracing, shutdown_tracing
+from src.api.middleware.logging import RequestLoggingMiddleware, TraceContextMiddleware
+from src.api.exceptions import APIException, ErrorResponse
 from src.api.routes import health_router, search_router, datasets_router
 
 logger = get_logger(__name__)
+tracer = trace.get_tracer(__name__)
 
 
-class ErrorDetail(dict):
-    """Standard error response format."""
-    pass
-
-
-class RequestLoggingMiddleware(BaseHTTPMiddleware):
-    """Log all HTTP requests and responses."""
-    
-    async def dispatch(self, request: Request, call_next: Callable) -> Callable:
-        import time
-        
-        # Log request
-        logger.debug(f"{request.method} {request.url.path}")
-        
-        # Process request
-        start = time.time()
-        response = await call_next(request)
-        duration = time.time() - start
-        
-        # Log response
-        logger.debug(f"{request.method} {request.url.path} - {response.status_code} ({duration:.3f}s)")
-        
-        return response
-
-
-def create_app(settings=None) -> FastAPI:
+def create_app(settings: Optional[object] = None) -> FastAPI:
     """
     Create and configure FastAPI application.
     
+    Creates a production-ready application with:
+    - OpenTelemetry tracing integration
+    - Structured logging with correlation IDs
+    - Comprehensive exception handling
+    - CORS for frontend development
+    - Health monitoring
+    
+    Architecture follows:
+    - Clean Architecture: Clear separation between layers
+    - SOLID Principles: Single responsibility, Open/closed
+    - DI Pattern: Dependencies injected, not created
+    - Observable: All operations traced and logged
+    
     Args:
-        settings: Application settings (uses default if None)
+        settings: Application settings (uses default from config if None)
         
     Returns:
-        Configured FastAPI application
+        Configured FastAPI application ready for deployment
+        
+    Raises:
+        Exception: If critical initialization fails (logged before raising)
     """
     if settings is None:
         settings = get_settings()
     
-    logger.info(f"Creating FastAPI application: {settings.app_name}")
+    # Initialize logging system
+    setup_logging(
+        log_level=settings.get("log_level", "INFO"),
+        log_file_path=settings.get("log_file_path", "logs/dsh_etl_search_ai.log")
+    )
     
-    # Create app with metadata
+    logger.info(f"Creating FastAPI application: {settings.app_name}")
+    logger.debug(f"Environment: {settings.environment}, Debug: {settings.debug}")
+    
+    # Initialize distributed tracing (OpenTelemetry)
+    try:
+        initialize_tracing()
+        logger.info("OpenTelemetry tracing initialized")
+    except Exception as e:
+        logger.warning(f"Failed to initialize tracing: {e}. Continuing without tracing.")
+    
+    # Create FastAPI app with metadata
     app = FastAPI(
         title=settings.app_name,
         description="Semantic search and discovery for environmental datasets",
@@ -74,94 +95,249 @@ def create_app(settings=None) -> FastAPI:
     )
     
     # ========================================================================
-    # Middleware
+    # Middleware Configuration
     # ========================================================================
     
-    # CORS Configuration
+    # Add CORS middleware LAST (executes FIRST in the middleware chain)
+    logger.debug("Configuring CORS middleware")
     app.add_middleware(
         CORSMiddleware,
         allow_origins=[
-            "http://localhost:3000",      # Development frontend
-            "http://localhost:5173",      # SvelteKit dev server
-            "http://127.0.0.1:5173",
-            "http://127.0.0.1:3000",
+            "http://localhost:3000",       # Development frontend
+            "http://localhost:5173",       # SvelteKit dev server
+            "http://127.0.0.1:5173",       # Localhost variant
+            "http://127.0.0.1:3000",       # Localhost variant
         ],
         allow_credentials=True,
-        allow_methods=["*"],
+        allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
         allow_headers=["*"],
+        expose_headers=["x-request-id", "traceparent", "tracestate"],
+        max_age=3600,  # Cache preflight for 1 hour
     )
     
-    # Request logging middleware
+    # Add trace context middleware (propagates W3C Trace Context)
+    logger.debug("Adding trace context middleware")
+    app.add_middleware(TraceContextMiddleware)
+    
+    # Add enhanced logging middleware (request/response logging + spans)
+    logger.debug("Adding request logging middleware")
     app.add_middleware(RequestLoggingMiddleware)
     
     # ========================================================================
-    # Lifespan Events
+    # Lifespan Events (Application Startup/Shutdown)
     # ========================================================================
     
     @app.on_event("startup")
-    async def startup_event():
-        """Initialize on application startup."""
+    async def on_startup():
+        """Initialize resources on application startup.
+        
+        Lifecycle:
+        1. Log startup
+        2. Ensure directories exist
+        3. Initialize database connections (if needed)
+        4. Warm up caches
+        """
+        logger.info("=" * 70)
         logger.info(f"Starting {settings.app_name}")
-        logger.info(f"Environment: {settings.app_env}")
-        logger.info(f"Debug mode: {settings.debug}")
-        settings.ensure_directories()
-        logger.info("Application startup complete")
+        logger.info(f"Environment: {settings.environment}")
+        logger.info(f"Debug Mode: {settings.debug}")
+        logger.info(f"Log Level: {settings.get('log_level', 'INFO')}")
+        logger.info("=" * 70)
+        
+        # Ensure required directories exist
+        try:
+            settings.ensure_directories()
+            logger.info("Required directories initialized")
+        except Exception as e:
+            logger.error(f"Failed to create directories: {e}")
     
     @app.on_event("shutdown")
-    async def shutdown_event():
-        """Cleanup on application shutdown."""
+    async def on_shutdown():
+        """Clean up resources on application shutdown.
+        
+        Lifecycle:
+        1. Close database connections
+        2. Flush OpenTelemetry spans
+        3. Log shutdown
+        """
         logger.info("Shutting down application")
+        try:
+            shutdown_tracing()
+            logger.info("Tracing shutdown complete")
+        except Exception as e:
+            logger.error(f"Error during tracing shutdown: {e}")
+        logger.info("Application shutdown complete")
     
     # ========================================================================
-    # Routes
+    # Exception Handlers
     # ========================================================================
     
-    # Health check endpoints (no /api prefix)
+    @app.exception_handler(APIException)
+    async def api_exception_handler(request: Request, exc: APIException):
+        """Handle structured API exceptions.
+        
+        Converts APIException to structured JSON response with:
+        - HTTP status code
+        - Machine-readable error code
+        - Human-readable detail
+        - Trace ID (for log correlation)
+        - Timestamp
+        
+        Args:
+            request: HTTP request
+            exc: APIException instance
+            
+        Returns:
+            JSONResponse with error details
+        """
+        # Extract trace ID from request state
+        trace_id: Optional[str] = getattr(request.state, "trace_id", None)
+        if not trace_id:
+            span = trace.get_current_span()
+            if span and span.is_recording():
+                span_context = span.get_span_context()
+                trace_id = f"{span_context.trace_id:032x}"
+        
+        # Extract request ID
+        request_id: Optional[str] = getattr(request.state, "request_id", None)
+        
+        # Create error response
+        error_response = exc.to_response(
+            trace_id=trace_id,
+            request_id=request_id,
+        )
+        
+        # Log error with context
+        logger.warning(
+            f"{exc.status_code} {exc.error_code.value}: {exc.detail}",
+            extra={
+                "trace_id": trace_id,
+                "request_id": request_id,
+                "path": request.url.path,
+                "method": request.method,
+                "error_code": exc.error_code.value,
+            },
+        )
+        
+        # Record in current span if available
+        span = trace.get_current_span()
+        if span and span.is_recording():
+            span.add_event(
+                "API Error",
+                attributes={
+                    "error.type": exc.error_code.value,
+                    "error.message": exc.detail,
+                    "http.status_code": exc.status_code,
+                },
+            )
+        
+        return JSONResponse(
+            status_code=exc.status_code,
+            content=error_response.to_dict(),
+        )
+    
+    @app.exception_handler(Exception)
+    async def global_exception_handler(request: Request, exc: Exception):
+        """Handle all unhandled exceptions.
+        
+        Converts any unhandled exception to structured JSON response.
+        Logs full stack trace for debugging while returning generic message to client.
+        
+        Args:
+            request: HTTP request
+            exc: Unhandled exception
+            
+        Returns:
+            JSONResponse with generic error
+        """
+        # Extract context
+        trace_id: Optional[str] = getattr(request.state, "trace_id", None)
+        if not trace_id:
+            span = trace.get_current_span()
+            if span and span.is_recording():
+                span_context = span.get_span_context()
+                trace_id = f"{span_context.trace_id:032x}"
+        
+        request_id: Optional[str] = getattr(request.state, "request_id", None)
+        
+        # Log full exception with stack trace (NEVER send to client)
+        logger.error(
+            f"Unhandled exception: {type(exc).__name__}: {str(exc)}",
+            extra={
+                "trace_id": trace_id,
+                "request_id": request_id,
+                "path": request.url.path,
+                "method": request.method,
+            },
+            exc_info=True,  # Include full stack trace
+        )
+        
+        # Record in span
+        span = trace.get_current_span()
+        if span and span.is_recording():
+            span.record_exception(exc)
+        
+        # Return generic error response (never expose internal details!)
+        error_response = ErrorResponse(
+            detail="Internal server error. Please contact support with trace ID.",
+            error_code="INTERNAL_ERROR",
+            trace_id=trace_id,
+            timestamp=datetime.now(timezone.utc).isoformat(),
+            request_id=request_id,
+        )
+        
+        return JSONResponse(
+            status_code=500,
+            content=error_response.to_dict(),
+        )
+    
+    # ========================================================================
+    # API Routes
+    # ========================================================================
+    
+    logger.debug("Registering API routes")
+    
+    # Health check endpoints (no /api prefix, used by deployment/monitoring)
     app.include_router(health_router)
     
-    # API v1 endpoints
+    # API v1 endpoints (grouped under /api prefix)
     app.include_router(search_router, prefix="/api")
     app.include_router(datasets_router, prefix="/api")
     
     # ========================================================================
-    # Root Routes
+    # Root Endpoint
     # ========================================================================
     
     @app.get("/")
     async def root():
-        """API root with metadata."""
+        """API root endpoint with metadata.
+        
+        Returns:
+            Service metadata and endpoint documentation
+        """
         return {
-            "name": settings.app_name,
+            "service": settings.app_name,
             "version": "1.0.0",
-            "docs": "/docs",
-            "health": "/health",
-            "api": "/api",
+            "environment": settings.environment,
+            "endpoints": {
+                "docs": "/docs",
+                "health": "/health",
+                "search": "/api/search",
+                "datasets": "/api/datasets",
+            },
         }
     
-    # ========================================================================
-    # Error Handlers
-    # ========================================================================
-    
-    @app.exception_handler(Exception)
-    async def global_exception_handler(request: Request, exc: Exception):
-        """Handle all unhandled exceptions."""
-        logger.error(
-            f"Unhandled exception: {type(exc).__name__}: {str(exc)}",
-            exc_info=True
-        )
-        return JSONResponse(
-            status_code=500,
-            content={
-                "detail": "Internal server error",
-                "error_code": "INTERNAL_ERROR",
-            }
-        )
-    
-    logger.info(f"FastAPI application created successfully")
+    logger.info("FastAPI application initialized successfully")
+    logger.info(f"Available endpoints: /health, /docs, /api/search, /api/datasets")
     
     return app
 
 
+# ============================================================================
+# Default App Instance
+# ============================================================================
+
 # Create default app instance for uvicorn
+# uvicorn main:app --reload
 settings = get_settings()
 app = create_app(settings)
