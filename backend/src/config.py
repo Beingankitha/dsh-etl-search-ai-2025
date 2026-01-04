@@ -54,9 +54,13 @@ class Settings(BaseSettings):
     supporting_docs_max_file_size: int = 104857600  # 100MB
     web_folder_max_depth: int = 3
 
-    # Vector Store (Issue #7)
+    # Vector Store & Embeddings Configuration (Issue #7)
     chroma_path: str = "./data/chroma"
     embedding_model: str = "all-MiniLM-L6-v2"
+    embedding_batch_size: int = 32
+    embedding_device: str = "cpu"  # 'cpu' or 'cuda' for GPU
+    text_chunk_size: int = 1000  # Characters per chunk for RAG
+    text_chunk_overlap: int = 200  # Overlap between chunks
 
     # Ollama LLM Configuration (Issue #7)
     ollama_host: str = "http://localhost:11434"

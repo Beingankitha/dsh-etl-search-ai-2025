@@ -269,7 +269,10 @@ uv run python -m src.cli etl --limit 3 --dry-run --verbose
 ### Step 5: Full Pipeline
 
 ```bash
-uv run python -m src.cli etl --enable-data-files --enable-supporting-docs --verbose
+uv run python -m src.cli etl --limit 3 --verbose
+
+# with flags
+uv run python -m src.cli etl --limit 3 --enable-data-files --enable-supporting-docs --verbose
 ```
 
 ### Sample Test Run Output
@@ -353,6 +356,27 @@ Cache Breakdown by Metadata Type:
 ✓ ETL Pipeline completed successfully
 ```
 
+### step 6: 
+
+```bash
+# Generate embeddings and index
+uv run python -m src.cli index --verbose
+# Expected: Generates embeddings for 3 datasets
+# Check: ./data/chroma/ directory created with parquet files
+# Should see progress: "Indexed 3/3 datasets"
+
+# Test semantic search
+uv run python -c "
+from src.services.embeddings import EmbeddingService, VectorStore
+service = EmbeddingService()
+store = VectorStore()
+query = service.embed_text('climate data')
+results = store.search_datasets(query, limit=3)
+for r in results:
+    print(f\"Score: {r['similarity_score']:.3f} - {r['metadata']['title']}\")
+"
+# Expected: Returns 3 results with similarity scores > 0.5
+```
 ---
 
 ## Frontend (SvelteKit) — Setup
