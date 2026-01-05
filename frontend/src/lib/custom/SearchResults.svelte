@@ -10,9 +10,9 @@
 		hasSearched?: boolean;
 	}
 
-	const { results = [], loading = false, error = null, hasSearched = false } = $props();
+	let { results = $bindable([]), loading = false, error = null, hasSearched = false } = $props();
 
-	const resultCount = results.length;
+	let resultCount = $derived(results.length);
 </script>
 
 <div class="search-results">
@@ -21,6 +21,7 @@
 		<div class="state-container loading-state">
 			<Loader2 size={48} class="spinner" />
 			<p class="state-message">Searching datasets...</p>
+			<p style="font-size: 0.875rem; opacity: 0.7; margin-top: 0.5rem;">This usually takes 1-2 seconds</p>
 		</div>
 	{/if}
 
@@ -78,7 +79,7 @@
 		color: var(--muted-foreground);
 	}
 
-	.spinner {
+	:global(.spinner) {
 		animation: spin 1s linear infinite;
 		color: var(--primary);
 	}
@@ -96,7 +97,7 @@
 		color: #ef4444;
 	}
 
-	.error-icon {
+	:global(.error-icon) {
 		color: #ef4444;
 	}
 
@@ -108,7 +109,7 @@
 		color: var(--muted-foreground);
 	}
 
-	.empty-icon {
+	:global(.empty-icon) {
 		color: var(--muted-foreground);
 		opacity: 0.5;
 	}
@@ -136,12 +137,14 @@
 		justify-content: space-between;
 		align-items: center;
 		padding: 0 1rem;
+		border-bottom: 2px solid var(--primary);
+		padding-bottom: 1rem;
 	}
 
 	.results-count {
 		font-size: 0.875rem;
 		font-weight: 600;
-		color: var(--muted-foreground);
+		color: var(--primary);
 		margin: 0;
 	}
 
