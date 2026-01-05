@@ -131,21 +131,41 @@ echo -e "${YELLOW}→ Processing ${DATASET_LIMIT} datasets with automatic indexi
 
 cd "$SCRIPT_DIR/backend"
 
-# Determine whether to run ETL: skip if DB already has datasets unless forced
+# Determine whether to run ETL: only skip if DB has at least as many datasets
+# as there are identifiers in the metadata file (ignore comment lines)
 SKIP_ETL=false
 # Use shell path for the database (avoid calling 'python')
 DB_PATH="${SCRIPT_DIR}/backend/data/datasets.db"
+IDENTIFIERS_FILE="${SCRIPT_DIR}/backend/metadata-file-identifiers.txt"
+
+# Count non-comment, non-empty identifier lines if the file exists
+if [ -f "$IDENTIFIERS_FILE" ]; then
+    IDENTIFIERS_COUNT=$(grep -vE '^\s*#' "$IDENTIFIERS_FILE" | sed '/^\s*$/d' | wc -l | tr -d ' ')
+else
+    IDENTIFIERS_COUNT=0
+fi
 
 if [ -f "$DB_PATH" ] && command -v sqlite3 >/dev/null 2>&1; then
     COUNT=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM datasets;" 2>/dev/null || echo 0)
-    if [ "$COUNT" -gt 0 ] && [ "$FORCE_ETL" = "false" ]; then
-        SKIP_ETL=true
-        echo -e "${YELLOW}→ Detected existing database with ${COUNT} datasets; skipping ETL. Use --force-etl to re-run.${NC}"
+    if [ "$FORCE_ETL" = "false" ]; then
+        if [ "$IDENTIFIERS_COUNT" -gt 0 ]; then
+            # Skip only when existing DB has at least as many datasets as identifiers
+            if [ "$COUNT" -ge "$IDENTIFIERS_COUNT" ]; then
+                SKIP_ETL=true
+                echo -e "${YELLOW}→ Detected existing database with ${COUNT} datasets (identifiers=${IDENTIFIERS_COUNT}); skipping ETL. Use --force-etl to re-run.${NC}"
+            fi
+        else
+            # If identifiers file is missing/empty, fallback to previous behavior (skip if any data)
+            if [ "$COUNT" -gt 0 ]; then
+                SKIP_ETL=true
+                echo -e "${YELLOW}→ Detected existing database with ${COUNT} datasets; skipping ETL. Use --force-etl to re-run.${NC}"
+            fi
+        fi
     fi
 fi
 
 if [ "$SKIP_ETL" = "false" ]; then
-    if ! uv run python -m src.cli etl --limit $DATASET_LIMIT --verbose; then
+    if ! uv run python cli_main.py etl --limit $DATASET_LIMIT --verbose; then
         echo -e "${RED}✗ ETL pipeline failed${NC}"
         exit 1
     fi
@@ -161,7 +181,7 @@ echo -e "${YELLOW}→ Starting FastAPI server on port ${BACKEND_PORT}...${NC}\n"
 
 cd "$SCRIPT_DIR/backend"
 # Start backend (run from backend directory so imports resolve)
-uv run uvicorn main:app --host 0.0.0.0 --port $BACKEND_PORT --reload &
+uv run python main.py &
 BACKEND_PID=$!
 
 if wait_for_port $BACKEND_PORT "Backend API"; then

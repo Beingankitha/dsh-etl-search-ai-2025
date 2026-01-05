@@ -328,6 +328,8 @@ class CachedMetadataFetcher:
         self.cache = cache
         self.ceh_extractor = ceh_extractor
         self.logger = get_logger(__name__)
+        # Track cache status for recently fetched items
+        self.fetch_cache_status: Dict[str, str] = {}  # format -> 'cached' or 'cache_miss'
 
     async def fetch_xml(self, identifier: str) -> Optional[str]:
         """Fetch XML with caching."""
@@ -386,6 +388,8 @@ class CachedMetadataFetcher:
                 self.logger.info(
                     f"[{identifier}] ⚡ CACHED {format.upper()} ({cache_size} bytes)"
                 )
+                # Track cache status
+                self.fetch_cache_status[format] = 'cached'
                 return cached_content
 
             # Fetch fresh data
@@ -397,6 +401,8 @@ class CachedMetadataFetcher:
                 self.logger.debug(
                     f"[{identifier}] Fetched and cached {format.upper()} ({content_size} bytes)"
                 )
+                # Track cache status
+                self.fetch_cache_status[format] = 'cache_miss'
                 return content
 
             # Failed fetch
@@ -408,3 +414,11 @@ class CachedMetadataFetcher:
             )
             # Return None - don't recount cache stats
             return None
+    
+    def get_last_fetch_cache_status(self, format: str) -> str:
+        """Get cache status from last fetch for a format."""
+        return self.fetch_cache_status.get(format, 'unknown')
+    
+    def clear_fetch_cache_status(self):
+        """Clear the fetch cache status tracking."""
+        self.fetch_cache_status = {}

@@ -23,7 +23,7 @@ from src.services.etl.etl_service import ETLService
 from src.services.embeddings import IndexingService
 from src.infrastructure import Database
 from src.repositories import UnitOfWork
-from src.logging_config import get_logger
+from src.logging_config import get_logger, setup_logging
 from src.services.observability import (
     initialize_tracing,
     shutdown_tracing,
@@ -102,6 +102,9 @@ def etl(
         uv run dsh-etl etl --verbose
     """
     
+    # Initialize logging with proper configuration
+    setup_logging(log_level="DEBUG" if verbose else "INFO")
+    
     # Configure logging level
     if verbose:
         logging.getLogger().setLevel(logging.DEBUG)
@@ -159,7 +162,7 @@ def etl(
     # Run ETL pipeline
     try:
         try:
-            asyncio.run(_run_etl(ids_file, limit, dry_run, enable_supporting_docs, enable_data_files))
+            asyncio.run(_run_etl(ids_file, limit, dry_run, enable_supporting_docs, enable_data_files, verbose))
             console.print("\n[bold green]✓ ETL Pipeline completed successfully[/bold green]\n")
         except KeyboardInterrupt:
             console.print("\n[bold yellow]⚠ Pipeline interrupted by user[/bold yellow]")
@@ -186,7 +189,8 @@ async def _run_etl(
     limit: Optional[int],
     dry_run: bool,
     enable_supporting_docs: bool,
-    enable_data_files: bool
+    enable_data_files: bool,
+    verbose: bool
 ):
     """Internal async function to run ETL pipeline"""
     
@@ -211,7 +215,8 @@ async def _run_etl(
             enable_supporting_docs=enable_supporting_docs,
             enable_data_files=enable_data_files,
             enable_adaptive_batching=True,
-            enable_error_recovery=True
+            enable_error_recovery=True,
+            verbose=verbose
         )
         
         # Run pipeline

@@ -2,6 +2,24 @@
 
 Dataset search and discovery solution with **ETL**, **semantic search**, and optional **conversational (RAG) chat** capabilities, developed for CEH(UK Center for Ecology and Hydrology) catalogue. 
 
+> **🚀 QUICK START**: Run one command to start everything (ETL + API + Frontend):
+> ```python
+> ./start-all.sh 
+> #./start-all.sh 50 # run for 50 identifiers
+> ```
+> Then open http://localhost:5173 and search for datasets!
+
+## Status: ✅ COMPLETE & INTEGRATED
+
+- ✅ ETL Pipeline (Extract → Transform → Load)
+- ✅ Vector Embeddings (384-dim with all-MiniLM-L6-v2)
+- ✅ Semantic Search (ChromaDB vector store)
+- ✅ Search API (FastAPI with validation)
+- ✅ Frontend Integration (Svelte search UI connected)
+- ✅ One-command startup script
+
+---
+
 This repository is a **mono-repo** and will contain:
 - `backend/` — Python services for ETL, storage, embeddings, semantic search, and API
 - `frontend/` — Svelte web app (to be added) for semantic search + chat UI
@@ -109,7 +127,7 @@ dsh-etl-search-ai-2025/
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                         CLI Interface                           │
-│                 (python -m src.cli etl)                         │
+│              (python cli_main.py etl ...)                       │
 └────────────────────────────┬────────────────────────────────────┘
                              │
          ┌───────────────────▼───────────────────┐
@@ -225,57 +243,50 @@ uv run python main.py
 
 If successful, you should see structured log lines confirming configuration was loaded.
 
-## Run Test ETL CLI 
+## Run Test ETL CLI
 
-### with Small Dataset
-
-**Command:**
-```bash
-uv run python -m src.cli etl --limit 3 --verbose --enable-data-files
-```
-
-**What happens:**
-1. Reads first 3 identifiers from `metadata-file-identifiers.txt`
-2. For each identifier:
-   - Attempts to fetch metadata (XML → JSON → RDF → Schema.org)
-   - Caches result (25% hit rate if re-run)
-   - Parses metadata with appropriate parser
-   - Stores dataset in database
-   - Extracts data files from ZIPs or web folders
-   - Downloads supporting documents
-   - Extracts text from documents
-
-**Duration:** ~2-5 seconds per identifier (depends on network and file sizes)
-
-### Step 3: Run with Supporting Documents
+### Quick test with 3 datasets
 
 ```bash
-uv run python -m src.cli etl --limit 3 --enable-data-files --enable-supporting-docs
+cd backend && uv run python cli_main.py etl --limit 3
 ```
 
-**Additional output:**
-- Supporting documents discovered
-- Documents downloaded
-- Text extracted from each document
-
-### Step 4: Dry-Run Mode (No Database Writes)
+### With verbose output (shows per-dataset progress)
 
 ```bash
-uv run python -m src.cli etl --limit 3 --dry-run --verbose
+cd backend && uv run python cli_main.py etl --limit 3 --verbose
 ```
 
-**Use case:** Test without committing to database
+**What the `--verbose` flag shows:**
+- Metadata fetch status (XML/JSON/RDF/Schema.org attempts)
+- Parsed dataset title  
+- Supporting documents found/downloaded/extracted counts
+- Data files found/stored counts
+- Blank line between datasets for readability
 
-### Step 5: Full Pipeline
+### Full ETL with data files and supporting docs
 
 ```bash
-uv run python -m src.cli etl --limit 3 --verbose
-
-# with flags
-uv run python -m src.cli etl --limit 3 --enable-data-files --enable-supporting-docs --verbose
+cd backend && uv run python cli_main.py etl --limit 50 --enable-data-files --enable-supporting-docs --verbose
 ```
 
-### Sample Test Run Output
+### Dry-run mode (no database writes)
+
+```bash
+cd backend && uv run python cli_main.py etl --limit 3 --dry-run --verbose
+```
+
+**Use case:** Test the full pipeline without committing to database
+
+### Step 5: Full production run (all 600+ datasets)
+
+```bash
+cd backend && uv run python cli_main.py etl --enable-data-files --enable-supporting-docs
+```
+
+## Sample Test Run Output
+
+When running `uv run python cli_main.py etl --limit 3 --verbose 2>&1 | grep "^\[" 2>&1`:
 
 ```
 ✓ Distributed tracing initialized
@@ -299,7 +310,6 @@ uv run python -m src.cli etl --limit 3 --enable-data-files --enable-supporting-d
 
 → Starting ETL Pipeline...
 
-[be0bdc0e-bc2e-4f1d-b524-2c02798dd893] ✓ XML fetch SUCCESS (cached)
 [be0bdc0e-bc2e-4f1d-b524-2c02798dd893] ✓ Parsed: "UK Environmental Change Network..."
 [be0bdc0e-bc2e-4f1d-b524-2c02798dd893] ✓ Found 12 supporting docs
 [be0bdc0e-bc2e-4f1d-b524-2c02798dd893] ✓ Downloaded 12 docs
@@ -307,7 +317,6 @@ uv run python -m src.cli etl --limit 3 --enable-data-files --enable-supporting-d
 [be0bdc0e-bc2e-4f1d-b524-2c02798dd893] ✓ Found 3 data files
 [be0bdc0e-bc2e-4f1d-b524-2c02798dd893] ✓ Stored 3 files
 
-[af6c4679-99aa-4352-9f63-af3bd7bc87a4] ✓ XML fetch SUCCESS (cached)
 [af6c4679-99aa-4352-9f63-af3bd7bc87a4] ✓ Parsed: "CEH Species Distribution..."
 [af6c4679-99aa-4352-9f63-af3bd7bc87a4] ✓ Found 8 supporting docs
 [af6c4679-99aa-4352-9f63-af3bd7bc87a4] ✓ Downloaded 8 docs
@@ -315,7 +324,6 @@ uv run python -m src.cli etl --limit 3 --enable-data-files --enable-supporting-d
 [af6c4679-99aa-4352-9f63-af3bd7bc87a4] ✓ Found 2 data files
 [af6c4679-99aa-4352-9f63-af3bd7bc87a4] ✓ Stored 2 files
 
-[3aaa52d3-918a-4f95-b065-32f33e45d4f6] ✓ XML fetch SUCCESS (cache miss)
 [3aaa52d3-918a-4f95-b065-32f33e45d4f6] ✓ Parsed: "Long-term Air Quality..."
 [3aaa52d3-918a-4f95-b065-32f33e45d4f6] ✓ Found 9 supporting docs
 [3aaa52d3-918a-4f95-b065-32f33e45d4f6] ✓ Downloaded 9 docs
@@ -337,36 +345,39 @@ uv run python -m src.cli etl --limit 3 --enable-data-files --enable-supporting-d
 │ Text Extracted                 │    29 │
 │ Data Files Extracted           │     9 │
 │ Data Files Stored              │     9 │
-│                                │       │
-│ Cache Hits                     │     3 │
-│ Cache Misses                   │     0 │
-│ Hit Rate                       │ 100%  │
 │ Duration (seconds)             │  2.32 │
 └────────────────────────────────┴───────┘
-
-Cache Breakdown by Metadata Type:
- Format           Hits  Misses  Hit Rate
- XML                 3       0    100.0%
- JSON                0       0      0.0%
- RDF                 0       0      0.0%
- SCHEMA_ORG          0       0      0.0%
 
 ✓ Data successfully committed to database
 
 ✓ ETL Pipeline completed successfully
 ```
 
-### step 6: 
+**What happened:**
+- Fetched metadata for 3 datasets (XML/JSON/RDF formats attempted)
+- Parsed titles and key metadata
+- Discovered 29 supporting documents across 3 datasets
+- Downloaded and extracted text from all 29 documents
+- Extracted and stored 9 data files total
+- All results committed to SQLite database
+
+### step 6: Generate Embeddings and Test Search
+
+Generate embeddings for the datasets:
 
 ```bash
-# Generate embeddings and index
-uv run python -m src.cli index --verbose
-# Expected: Generates embeddings for 3 datasets
-# Check: ./data/chroma/ directory created with parquet files
-# Should see progress: "Indexed 3/3 datasets"
+cd backend && uv run python cli_main.py index --verbose
+```
 
-# Test semantic search
-uv run python -c "
+**Expected output:**
+- Embeddings generated for 3 datasets using all-MiniLM-L6-v2 model
+- ChromaDB vector store updated
+- Check: `./data/chroma/` directory contains parquet files
+
+Test semantic search:
+
+```bash
+cd backend && uv run python -c "
 from src.services.embeddings import EmbeddingService, VectorStore
 service = EmbeddingService()
 store = VectorStore()
@@ -375,8 +386,51 @@ results = store.search_datasets(query, limit=3)
 for r in results:
     print(f\"Score: {r['similarity_score']:.3f} - {r['metadata']['title']}\")
 "
-# Expected: Returns 3 results with similarity scores > 0.5
 ```
+
+**Expected:** Returns 3 results with similarity scores > 0.5
+
+---
+
+## Quick Start with Startup Scripts
+
+Instead of running ETL, Backend API, and Frontend separately, use the all-in-one startup script:
+
+### Python version (recommended - cross-platform)
+
+```bash
+# Run everything: ETL (first 50 datasets) + Backend API + Frontend
+python start-all.py --limit 50
+
+# Options:
+python start-all.py --limit 100             # Increase limit
+python start-all.py --etl-only              # Only run ETL
+python start-all.py --api-only              # Only run backend API
+python start-all.py --backend-port 8001     # Custom backend port
+python start-all.py --frontend-port 5174    # Custom frontend port
+```
+
+### Bash version (macOS/Linux)
+
+```bash
+# Run everything with first 50 datasets
+./start-all.sh 50
+
+# Full production run (all 600+ datasets)
+./start-all.sh
+```
+
+**What happens:**
+1. Runs ETL pipeline with specified dataset limit
+2. Waits for ETL to complete (shows progress with --verbose)
+3. Starts backend API server on port 8000
+4. Starts frontend dev server on port 5173
+5. Opens http://localhost:5173 in your browser
+
+**View output:**
+- Each component logs to console with color formatting
+- Press `Ctrl+C` to stop all services
+
 ---
 
 ## Frontend (SvelteKit) — Setup

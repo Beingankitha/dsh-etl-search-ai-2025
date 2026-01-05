@@ -81,10 +81,32 @@ def setup_logging(log_level: str = "INFO", log_file_path: str = "logs/dsh_etl_se
     root_logger.addHandler(console_handler)
     root_logger.addHandler(file_handler)
 
+    # Suppress verbose logs from third-party libraries to keep console clean
     logging.getLogger("httpx").setLevel(logging.WARNING)
     logging.getLogger("chromadb").setLevel(logging.WARNING)
     logging.getLogger("sentence_transformers").setLevel(logging.WARNING)
     logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
+    logging.getLogger("aiohttp").setLevel(logging.WARNING)
+    
+    # Suppress verbose HTTP and cache logs to keep console clean during ETL
+    # These go to file only, not to console
+    http_logger = logging.getLogger("src.infrastructure.http_client")
+    http_logger.setLevel(logging.WARNING)
+    http_logger.handlers.clear()
+    http_logger.addHandler(file_handler)  # File only, no console
+    http_logger.propagate = False  # Don't propagate to root logger
+    
+    cache_logger = logging.getLogger("src.infrastructure.metadata_cache")
+    cache_logger.setLevel(logging.WARNING)
+    cache_logger.handlers.clear()
+    cache_logger.addHandler(file_handler)  # File only, no console
+    cache_logger.propagate = False  # Don't propagate to root logger
+    
+    ceh_logger = logging.getLogger("src.services.extractors.ceh_extractor")
+    ceh_logger.setLevel(logging.WARNING)
+    ceh_logger.handlers.clear()
+    ceh_logger.addHandler(file_handler)  # File only, no console
+    ceh_logger.propagate = False  # Don't propagate to root logger
 
 
 def get_logger(name: str) -> logging.Logger:
