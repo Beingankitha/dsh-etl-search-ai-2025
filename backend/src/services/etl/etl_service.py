@@ -50,9 +50,12 @@ from src.models import (
 )
 from src.config import settings
 from src.logging_config import get_logger
+from rich.console import Console
+from rich.text import Text
 
 logger = get_logger(__name__)
 tracer = get_tracer(__name__)
+console = Console()
 
 
 class ETLService:
@@ -75,7 +78,8 @@ class ETLService:
         enable_supporting_docs: bool = True,
         enable_data_files: bool = True,
         enable_adaptive_batching: bool = True,
-        enable_error_recovery: bool = True
+        enable_error_recovery: bool = True,
+        verbose: bool = False
     ):
         """
         Initialize ETL Service with support for error recovery and optimization.
@@ -90,6 +94,7 @@ class ETLService:
             enable_data_files: Whether to extract and load dataset data files
             enable_adaptive_batching: Whether to use adaptive batch sizing
             enable_error_recovery: Whether to use error recovery mechanisms
+            verbose: Whether to enable verbose output to console
         """
         self.identifiers_file = identifiers_file
         self.unit_of_work = unit_of_work
@@ -98,6 +103,7 @@ class ETLService:
         self.dry_run = dry_run
         self.enable_supporting_docs = enable_supporting_docs
         self.enable_data_files = enable_data_files
+        self.verbose = verbose
         
         # Initialize metadata caching system
         cache_dir = Path("./data/metadata_cache")
@@ -183,6 +189,19 @@ class ETLService:
             'metadata_cache_stats': {},
             'error_recovery_stats': {}
         }
+    
+    def _print_with_identifier(self, identifier: str, message: str, style: str = "green"):
+        """
+        Print a message with identifier prefix, avoiding Rich markup interpretation of brackets.
+        
+        Args:
+            identifier: Dataset identifier
+            message: Message to print (can include Rich markup)
+            style: Style to apply to the message
+        """
+        text = Text(f"[{identifier}] ", style=None)
+        text.append(message, style=style)
+        console.print(text)
     
     @trace_async_method(attributes={"module": "etl", "phase": "pipeline"})
     async def run_pipeline(self, limit: Optional[int] = None) -> Dict[str, Any]:
@@ -398,6 +417,9 @@ class ETLService:
         try:
             logger.debug(f"[{identifier}] Fetching all metadata formats (with caching)")
             
+            # Reset cache status tracking for this identifier
+            self.cached_fetcher.clear_fetch_cache_status()
+            
             # Fetch all formats concurrently using CACHED fetcher
             xml_content, json_content, rdf_content, schema_org_content = await asyncio.gather(
                 self.cached_fetcher.fetch_xml(identifier),
@@ -407,40 +429,20 @@ class ETLService:
                 return_exceptions=True
             )
             
-            # ✅ Log what we got - NOW WITH SUCCESS MESSAGES
-            # XML
-            if isinstance(xml_content, Exception):
-                logger.error(f"HTTP error on GET https://catalogue.ceh.ac.uk/documents/{identifier}.xml: {xml_content}")
-                logger.warning(f"[{identifier}] ✗ XML fetch FAILED")
-            else:
-                xml_size = len(xml_content) if isinstance(xml_content, str) else 0
-                logger.info(f"✓ XML fetch SUCCESS for {identifier} ({xml_size} bytes)")
-                print(f"[{identifier}] ✓ XML fetch SUCCESS")  # Add Rich console output for cli cmd
+            # Note: We don't log individual format success here - we only log
+            # the format that's actually used during the TRANSFORM phase (in _parse_metadata_with_fallback)
+            # This avoids showing "success for all formats" when only one is actually used
             
-            # JSON
-            if isinstance(json_content, Exception):
-                logger.warning(f"[{identifier}] ✗ JSON fetch FAILED: {type(json_content).__name__}")
-            else:
-                logger.info(f"✓ JSON fetch SUCCESS for {identifier}")
-            
-            # RDF
-            if isinstance(rdf_content, Exception):
-                logger.warning(f"[{identifier}] ✗ RDF fetch FAILED: {type(rdf_content).__name__}")
-            else:
-                logger.info(f"✓ RDF fetch SUCCESS for {identifier}")
-            
-            # Schema.org
-            if isinstance(schema_org_content, Exception):
-                logger.warning(f"[{identifier}] ✗ Schema.org fetch FAILED: {type(schema_org_content).__name__}")
-            else:
-                logger.info(f"✓ Schema.org fetch SUCCESS for {identifier}")
+            # Capture cache status for later use (before it gets overwritten by next fetch)
+            cache_status_snapshot = dict(self.cached_fetcher.fetch_cache_status)
             
             return {
                 'identifier': identifier,
                 'xml': xml_content if not isinstance(xml_content, Exception) else None,
                 'json': json_content if not isinstance(json_content, Exception) else None,
                 'rdf': rdf_content if not isinstance(rdf_content, Exception) else None,
-                'schema_org': schema_org_content if not isinstance(schema_org_content, Exception) else None
+                'schema_org': schema_org_content if not isinstance(schema_org_content, Exception) else None,
+                '_cache_status': cache_status_snapshot  # Store cache status for this identifier
             }
             
         except Exception as e:
@@ -487,7 +489,7 @@ class ETLService:
         
         Args:
             identifier: Dataset identifier
-            metadata_docs: Dictionary with 'xml', 'json', 'rdf', 'schema_org' content
+            metadata_docs: Dictionary with 'xml', 'json', 'rdf', 'schema_org' content and '_cache_status'
         """
         try:
             logger.debug(f"Processing dataset {identifier}")
@@ -498,22 +500,51 @@ class ETLService:
             if not dataset_model:
                 raise ValueError(f"Could not parse metadata in any format for {identifier}")
             
+            # Get source format from the parsed dataset
+            source_format = getattr(dataset_model, 'source_format', 'unknown')
+            
+            # Get cache status for the format that was used (from metadata_docs snapshot)
+            cache_status_snapshot = metadata_docs.get('_cache_status', {})
+            cache_status = cache_status_snapshot.get(source_format, 'unknown')
+            cache_text = "(cached)" if cache_status == 'cached' else "(cache miss)"
+            
+            # Verbose output: Show fetch status with format and cache info
+            if self.verbose:
+                # Format the format name for display
+                if source_format == 'schema_org':
+                    format_display = 'Schema.org'
+                else:
+                    format_display = source_format.upper()
+                
+                # Show fetch status with cache info
+                self._print_with_identifier(identifier, f"✓ {format_display} fetch SUCCESS {cache_text}")
+                self._print_with_identifier(identifier, f"✓ Parsed: \"{dataset_model.title}\"")
+            
             # Load to database
             await self._load_dataset_to_database(identifier, dataset_model, metadata_docs)
             
+            # Track supporting docs
+            num_supporting_docs = 0
             # Process supporting documents
             if self.enable_supporting_docs:
-                await self._process_supporting_documents(identifier, metadata_docs)
+                num_supporting_docs = await self._process_supporting_documents(identifier, metadata_docs)
             
+            # Track data files
+            num_data_files = 0
             # Process data files
             if self.enable_data_files:
-                await self._process_data_files(identifier, metadata_docs)
+                num_data_files = await self._process_data_files(identifier, metadata_docs)
 
             logger.info(f"[{identifier}] ✓ Dataset processed successfully")
+            if self.verbose:
+                # Print blank line between datasets for readability
+                console.print()
             # self.report['successful'] += 1 #(handled in _transform_and_load_phase)
 
         except Exception as e:
             logger.error(f"[{identifier}] Failed to process dataset: {e}")
+            if self.verbose:
+                self._print_with_identifier(identifier, f"✗ Processing failed: {e}", style="red")
             # Don't record error here - let _transform_and_load_phase handle it
             raise
 
@@ -524,6 +555,9 @@ class ETLService:
         Args:
             identifier: Dataset identifier
             metadata_docs: Metadata documents dictionary with 'xml', 'json', 'rdf', 'schema_org'
+            
+        Returns:
+            Number of supporting documents processed
         """
         try:
             # ✅ FIXED: Call unified discover() method with available formats
@@ -536,10 +570,13 @@ class ETLService:
             
             if not doc_urls:
                 logger.debug(f"[{identifier}] No supporting documents found")
-                return
+                return 0
             
-            self.report['supporting_docs_found'] += len(doc_urls)
-            logger.info(f"[{identifier}] Found {len(doc_urls)} supporting documents")
+            num_docs = len(doc_urls)
+            self.report['supporting_docs_found'] += num_docs
+            logger.info(f"[{identifier}] Found {num_docs} supporting documents")
+            if self.verbose:
+                self._print_with_identifier(identifier, f"✓ Found {num_docs} supporting docs")
             
             # Download documents
             try:
@@ -547,12 +584,16 @@ class ETLService:
                 
                 if not downloaded_items:
                     logger.debug(f"[{identifier}] No documents were downloaded")
-                    return
+                    return 0
                 
-                self.report['supporting_docs_downloaded'] += len(downloaded_items)
-                logger.info(f"[{identifier}] Downloaded {len(downloaded_items)} documents")
+                num_downloaded = len(downloaded_items)
+                self.report['supporting_docs_downloaded'] += num_downloaded
+                logger.info(f"[{identifier}] Downloaded {num_downloaded} documents")
+                if self.verbose:
+                    self._print_with_identifier(identifier, f"✓ Downloaded {num_downloaded} docs")
                 
                 # Extract text from each document
+                text_count = 0
                 for url, doc_path in downloaded_items:
                     try:
                         # ✅ FIXED: Use correct method name 'extract' not 'extract_text'
@@ -580,19 +621,26 @@ class ETLService:
                                 self.unit_of_work.commit()
                                 logger.debug(f"[{identifier}] Stored supporting document: {Path(doc_path).name}")
                         
+                        text_count += 1
                         self.report['text_extracted'] += 1
                         
                     except Exception as e:
                         logger.warning(f"[{identifier}] Failed to extract text from {doc_path}: {e}")
                         continue
+                
+                if self.verbose and text_count > 0:
+                    self._print_with_identifier(identifier, f"✓ Extracted text from {text_count} docs")
+                
+                return text_count
             
             except Exception as e:
                 logger.warning(f"[{identifier}] Failed to download supporting documents: {e}")
+                return 0
         
         except Exception as e:
             logger.debug(f"[{identifier}] Supporting document processing failed (non-fatal): {e}")
             # Don't fail the entire pipeline if supporting docs fail
-            pass
+            return 0
     
     async def _process_data_files(self, identifier: str, metadata_docs: Dict[str, str]):
         """
@@ -601,6 +649,9 @@ class ETLService:
         Args:
             identifier: Dataset identifier
             metadata_docs: Metadata documents dictionary with 'xml', 'json', 'rdf', 'schema_org'
+            
+        Returns:
+            Number of data files stored
         """
         try:
             # Get dataset ID and set up repository with active unit of work
@@ -608,7 +659,7 @@ class ETLService:
                 dataset = self.unit_of_work.datasets.get_by_file_identifier(identifier)
                 if not dataset:
                     logger.warning(f"[{identifier}] Dataset not found, skipping data files")
-                    return
+                    return 0
                 dataset_id = dataset.id
                 
                 # Set the file repository on the extractor to use the active connection
@@ -623,16 +674,27 @@ class ETLService:
             )
             
             # Update report
-            self.report['data_files_extracted'] += stats.get('files_extracted', 0)
-            self.report['data_files_stored'] += stats.get('files_stored', 0)
+            files_found = stats.get('files_extracted', 0)
+            files_stored = stats.get('files_stored', 0)
             
-            if stats.get('files_stored', 0) > 0:
-                logger.info(f"[{identifier}] Extracted and stored {stats['files_stored']} data files")
+            self.report['data_files_extracted'] += files_found
+            self.report['data_files_stored'] += files_stored
             
+            if self.verbose and files_found > 0:
+                self._print_with_identifier(identifier, f"✓ Found {files_found} data files")
+            
+            if self.verbose and files_stored > 0:
+                self._print_with_identifier(identifier, f"✓ Stored {files_stored} files")
+            
+            if files_stored > 0:
+                logger.info(f"[{identifier}] Extracted and stored {files_stored} data files")
+            
+            return files_stored
+        
         except Exception as e:
             logger.debug(f"[{identifier}] Data file processing failed (non-fatal): {e}")
             # Don't fail the entire pipeline if data files fail
-            pass
+            return 0
     
     async def _parse_metadata_with_fallback(
         self,
@@ -710,7 +772,7 @@ class ETLService:
             
             # Store metadata documents (use database ID, not file identifier)
             for format_name, content in metadata_docs.items():
-                if format_name == 'identifier' or not content:
+                if format_name.startswith('_') or format_name == 'identifier' or not content:
                     continue
                 
                 try:

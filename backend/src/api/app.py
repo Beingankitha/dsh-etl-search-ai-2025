@@ -100,14 +100,43 @@ def create_app(settings: Optional[object] = None) -> FastAPI:
     
     # Add CORS middleware LAST (executes FIRST in the middleware chain)
     logger.debug("Configuring CORS middleware")
+    
+    # Determine allowed origins based on environment
+    if settings.environment == "production":
+        # Production: Be strict with origins
+        allowed_origins = [
+            "https://your-domain.com",  # Replace with actual domain
+            "https://www.your-domain.com",
+        ]
+    else:
+        # Development: Allow all localhost variants and common dev ports
+        allowed_origins = [
+            "http://localhost",
+            "http://localhost:3000",
+            "http://localhost:5173",
+            "http://localhost:5174",
+            "http://localhost:5175",
+            "http://localhost:5176",
+            "http://localhost:5177",
+            "http://127.0.0.1",
+            "http://127.0.0.1:3000",
+            "http://127.0.0.1:5173",
+            "http://127.0.0.1:5174",
+            "http://127.0.0.1:5175",
+            "http://127.0.0.1:5176",
+            "http://127.0.0.1:5177",
+            "http://[::1]",  # IPv6 localhost
+            "http://[::1]:3000",
+            "http://[::1]:5173",
+            "http://[::1]:5174",
+            "http://[::1]:5175",
+            "http://[::1]:5176",
+            "http://[::1]:5177",
+        ]
+    
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=[
-            "http://localhost:3000",       # Development frontend
-            "http://localhost:5173",       # SvelteKit dev server
-            "http://127.0.0.1:5173",       # Localhost variant
-            "http://127.0.0.1:3000",       # Localhost variant
-        ],
+        allow_origins=allowed_origins,
         allow_credentials=True,
         allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
         allow_headers=["*"],

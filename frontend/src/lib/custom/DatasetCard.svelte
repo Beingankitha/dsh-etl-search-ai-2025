@@ -8,29 +8,31 @@
 		result: SearchResult;
 	}
 
-	const { result } = $props();
+	let { result } = $props();
 
-	const dataset = result.dataset;
-	const relevancePercent = Math.round(result.score * 100);
+	let dataset = $derived(result.dataset);
+	let relevancePercent = $derived(Math.round(result.score * 100));
 
 	// Get display keywords (max 4)
-	const displayKeywords = dataset.keywords.slice(0, 4);
-	const extraKeywordCount = Math.max(0, dataset.keywords.length - 4);
+	let displayKeywords = $derived(dataset.keywords.slice(0, 4));
+	let extraKeywordCount = $derived(Math.max(0, dataset.keywords.length - 4));
 
 	// Truncate abstract to 200 chars
-	const truncatedAbstract = dataset.abstract.length > 200 
-		? dataset.abstract.substring(0, 200) + '...' 
-		: dataset.abstract;
+	let truncatedAbstract = $derived(
+		dataset.abstract.length > 200 
+			? dataset.abstract.substring(0, 200) + '...' 
+			: dataset.abstract
+	);
 
 	// Build CEH catalogue URL
-	const cehUrl = `https://catalogue.ceh.ac.uk/documents/${dataset.file_identifier}`;
+	let cehUrl = $derived(`https://catalogue.ceh.ac.uk/documents/${dataset.file_identifier}`);
 </script>
 
 <Card class="dataset-card">
 	<CardHeader>
 		<div class="card-title-wrapper">
-			<CardTitle class="dataset-title">{dataset.title}</CardTitle>
-			<Badge variant="outline" class="relevance-badge">{relevancePercent}%</Badge>
+			<CardTitle>{dataset.title}</CardTitle>
+			<Badge class="relevance-badge">{relevancePercent}%</Badge>
 		</div>
 		{#if dataset.topic_category.length > 0}
 			<Badge class="category-badge">{dataset.topic_category[0]}</Badge>
@@ -38,7 +40,7 @@
 	</CardHeader>
 
 	<CardContent class="card-content-wrapper">
-		<CardDescription class="dataset-abstract">
+		<CardDescription>
 			{truncatedAbstract}
 		</CardDescription>
 
@@ -59,20 +61,27 @@
 </Card>
 
 <style>
-	.dataset-card {
-		transition: box-shadow 200ms ease, transform 200ms ease;
+	:global(.dataset-card) {
+		transition: box-shadow 200ms ease, transform 200ms ease, border-color 200ms ease !important;
 		height: 100%;
 		display: flex;
 		flex-direction: column;
+		border: 2px solid #1a5c47 !important;
 	}
 
-	.dataset-card:hover {
-		box-shadow: 0 10px 25px rgb(0 0 0 / 0.1);
+	:global(.dataset-card:hover) {
+		box-shadow: 0 10px 25px rgb(0 0 0 / 0.1) !important;
 		transform: translateY(-2px);
+		border-color: #0d3a2e !important;
 	}
 
-	.dark .dataset-card:hover {
-		box-shadow: 0 10px 25px rgb(0 0 0 / 0.3);
+	:global(.dark .dataset-card) {
+		border-color: #4ade80 !important;
+	}
+
+	:global(.dark .dataset-card:hover) {
+		box-shadow: 0 10px 25px rgb(0 0 0 / 0.3) !important;
+		border-color: #22c55e !important;
 	}
 
 	.card-title-wrapper {
@@ -82,7 +91,7 @@
 		gap: 1rem;
 	}
 
-	.dataset-title {
+	:global(.dataset-title) {
 		flex: 1;
 		display: -webkit-box;
 		-webkit-line-clamp: 2;
@@ -93,17 +102,25 @@
 		margin: 0;
 	}
 
-	.relevance-badge {
+	:global(.relevance-badge) {
 		flex-shrink: 0;
 		font-weight: 600;
+		background-color: #1a5c47 !important;
+		color: white !important;
+		border: none !important;
 	}
 
-	.category-badge {
+	:global(.dark .relevance-badge) {
+		background-color: #4ade80 !important;
+		color: #0f172a !important;
+	}
+
+	:global(.category-badge) {
 		margin-top: 0.5rem;
 		font-size: 0.75rem;
 	}
 
-	.card-content-wrapper {
+	:global(.card-content-wrapper) {
 		flex: 1;
 		display: flex;
 		flex-direction: column;
@@ -111,7 +128,7 @@
 		padding-top: 0;
 	}
 
-	.dataset-abstract {
+	:global(.dataset-abstract) {
 		line-height: 1.5;
 		color: var(--muted-foreground);
 		margin: 0;
@@ -123,7 +140,7 @@
 		gap: 0.5rem;
 	}
 
-	.keyword-badge {
+	:global(.keyword-badge) {
 		font-size: 0.75rem;
 	}
 
@@ -144,7 +161,7 @@
 	}
 
 	@media (max-width: 768px) {
-		.dataset-title {
+		:global(.dataset-title) {
 			font-size: 1rem;
 		}
 
@@ -152,7 +169,7 @@
 			gap: 0.25rem;
 		}
 
-		.keyword-badge {
+		:global(.keyword-badge) {
 			font-size: 0.7rem;
 			padding: 0.25rem 0.5rem;
 		}

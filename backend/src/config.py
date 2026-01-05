@@ -40,12 +40,12 @@ class Settings(BaseSettings):
 
     # CEH API Configuration (Issue #4)
     ceh_api_base_url: str = "https://catalogue.ceh.ac.uk"
-    ceh_api_timeout: int = 30
+    ceh_api_timeout: int = 300  # Increased to 300s for large data file downloads
     ceh_api_max_retries: int = 3
     ceh_api_retry_delay: int = 1
 
     # HTTP Client Configuration
-    http_timeout: int = 30
+    http_timeout: int = 300  # Increased to 300s (5 min) for large data file downloads
     http_max_retries: int = 3
     http_retry_backoff_factor: float = 0.5
 
@@ -56,9 +56,10 @@ class Settings(BaseSettings):
 
     # Vector Store & Embeddings Configuration (Issue #7)
     chroma_path: str = "./data/chroma"
-    embedding_model: str = "all-MiniLM-L6-v2"
+    embedding_model: str = "all-MiniLM-L6-v2"  # Fast model, good accuracy. Alternative: "all-MiniLM-L12-v2" (faster) or "sentence-transformers/all-MiniLM-L6-v2" (same)
     embedding_batch_size: int = 32
     embedding_device: str = "cpu"  # 'cpu' or 'cuda' for GPU
+    embedding_normalize: bool = True  # Normalize embeddings for faster similarity
     text_chunk_size: int = 1000  # Characters per chunk for RAG
     text_chunk_overlap: int = 200  # Overlap between chunks
 
@@ -74,10 +75,10 @@ class Settings(BaseSettings):
     # Distributed Tracing Configuration (Observability)
     jaeger_host: str = "localhost"
     jaeger_port: int = 6831
-    jaeger_enabled: bool = True
+    jaeger_enabled: bool = False  # Disabled by default - enable only if OTLP collector running
     jaeger_service_name: str = "dsh-etl-search-ai"
     jaeger_environment: str = "development"
-    jaeger_sample_rate: float = 1.0  # 1.0 = 100% sampling (reduce to 0.1 for production)
+    jaeger_sample_rate: float = 0.1  # 0.1 = 10% sampling (reduce for production)
 
     # Metadata Extraction (Issue #4)
     metadata_formats: List[str] = ["iso19139", "json", "schema_org", "rdf"]

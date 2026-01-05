@@ -14,6 +14,8 @@ from src.models.schemas import SearchRequest, SearchResponse, SearchResult
 from src.services.search import SearchService, SearchServiceError
 from src.services.embeddings import EmbeddingService, VectorStore
 from src.repositories import UnitOfWork
+from src.infrastructure import Database
+from src.config import get_settings
 
 logger = get_logger(__name__)
 
@@ -22,10 +24,23 @@ router = APIRouter(prefix="/search", tags=["search"])
 
 # Dependency Injection
 def get_search_service() -> SearchService:
-    """Instantiate SearchService with dependencies."""
+    """Instantiate SearchService with dependencies.
+    
+    Creates a fresh UnitOfWork per request to ensure thread-safety with SQLite.
+    SQLite connections cannot be shared across threads, so we create a new
+    connection for each request.
+    """
     embedding_service = EmbeddingService()
     vector_store = VectorStore()
-    unit_of_work = UnitOfWork()
+    
+    # Create a fresh database connection for this request
+    # (SQLite connections are thread-unsafe and cannot be reused across threads)
+    settings = get_settings()
+    database = Database(settings.database_path)
+    database.connect()
+    unit_of_work = UnitOfWork(database)
+    # Initialize repositories with this connection
+    unit_of_work.__enter__()
     
     return SearchService(
         embedding_service=embedding_service,
@@ -114,23 +129,71 @@ async def search_suggestions(
     """
     Get search suggestions/autocomplete for a partial query.
     
+    Searches dataset titles, abstracts, and keywords for matches.
+    Returns up to 10 suggestions sorted by relevance.
+    
     Args:
-        q: Partial query string
+        q: Partial query string (case-insensitive)
         
     Returns:
-        List of suggested search queries
+        Dictionary with 'suggestions' list of matching datasets/keywords
         
-    Note:
-        This is a placeholder for future enhancement with:
-        - Popular search queries
-        - Dataset title/keyword suggestions
-        - Recent searches
+    Examples:
+        GET /api/search/suggestions?q=soil
+        Response:
+        {
+            "suggestions": [
+                "Soil carbon data UK",
+                "Soil moisture monitoring",
+                "Soil properties survey",
+                ...
+            ]
+        }
     """
-    # TODO: Implement with popular queries, keyword suggestions, etc.
-    return {
-        "suggestions": [
-            "climate data UK",
-            "precipitation measurements",
-            "environmental monitoring",
-        ]
-    }
+    try:
+        if not q or len(q.strip()) < 1:
+            return {"suggestions": []}
+        
+        # Create database connection for this request
+        settings = get_settings()
+        database = Database(settings.database_path)
+        database.connect()
+        unit_of_work = UnitOfWork(database)
+        unit_of_work.__enter__()
+        
+        try:
+            # Query database for matching titles and keywords
+            query_lower = q.lower().strip()
+            
+            # Get all datasets
+            all_datasets = unit_of_work.datasets.get_all()
+            
+            # Extract unique suggestions from titles and keywords
+            suggestions = set()
+            
+            for dataset in all_datasets:
+                # Add title if it matches
+                if query_lower in dataset.title.lower():
+                    suggestions.add(dataset.title)
+                
+                # Add keywords that match
+                if dataset.keywords:
+                    for keyword in dataset.keywords:
+                        if query_lower in keyword.lower():
+                            suggestions.add(keyword)
+            
+            # Convert to sorted list and limit to 10
+            sorted_suggestions = sorted(list(suggestions))[:10]
+            
+            logger.info(f"Suggestions for '{q}': found {len(sorted_suggestions)} results")
+            
+            return {"suggestions": sorted_suggestions}
+            
+        finally:
+            unit_of_work.__exit__(None, None, None)
+            database.close()
+            
+    except Exception as e:
+        logger.error(f"Error fetching suggestions: {e}", exc_info=True)
+        # Return empty suggestions on error instead of failing
+        return {"suggestions": []}
