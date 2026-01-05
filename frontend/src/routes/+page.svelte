@@ -10,6 +10,13 @@
 	let searchQuery = $state('');
 	let errorMessage = $state('');
 
+	// Watch searchStore.hasSearched and clear input when search is cleared
+	$effect(() => {
+		if (!$searchStore.hasSearched) {
+			searchQuery = '';
+		}
+	});
+
 	const exampleQueries = [
 		'water quality monitoring UK',
 		'biodiversity surveys',
