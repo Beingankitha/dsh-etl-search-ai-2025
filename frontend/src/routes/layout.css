@@ -39,6 +39,14 @@
 	.logo {
 		flex-shrink: 0;
 		flex: 1;
+		text-decoration: none;
+		display: inline-block;
+		cursor: pointer;
+		transition: opacity 200ms ease;
+	}
+
+	.logo:hover {
+		opacity: 0.8;
 	}
 
 	.logo-text {
