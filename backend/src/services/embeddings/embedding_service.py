@@ -128,6 +128,7 @@ class EmbeddingService:
         self.config = config or EmbeddingConfig()
         self._model: Optional[SentenceTransformer] = None
         self._embedding_dim: Optional[int] = None
+        self._embedding_cache: dict = {}  # LRU-like cache for embeddings
         self._initialize_model()
     
     def _initialize_model(self) -> None:
@@ -187,6 +188,11 @@ class EmbeddingService:
         if not text:
             return np.zeros(self._embedding_dim or 384)
         
+        # Check cache first (performance optimization)
+        cache_key = text.lower()
+        if cache_key in self._embedding_cache:
+            return self._embedding_cache[cache_key].copy()
+        
         try:
             with (get_tracer_instance() or _DummySpan()).start_as_current_span("embed_text") as span:
                 span.set_attribute("text_length", len(text))
@@ -198,6 +204,11 @@ class EmbeddingService:
                 )
                 
                 span.set_attribute("embedding_dim", len(embeddings))
+                
+                # Cache the result (keep last 100 queries)
+                if len(self._embedding_cache) > 100:
+                    self._embedding_cache.pop(next(iter(self._embedding_cache)))
+                self._embedding_cache[cache_key] = embeddings.copy()
                 return embeddings
                 
         except Exception as e:

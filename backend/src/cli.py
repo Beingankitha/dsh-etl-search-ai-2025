@@ -27,8 +27,12 @@ from src.logging_config import get_logger
 from src.services.observability import (
     initialize_tracing,
     shutdown_tracing,
+    get_tracer,
     TraceConfig,
     trace_async_function,
+    trace_sync_function,
+    set_span_attributes,
+    add_span_event,
 )
 
 logger = get_logger(__name__)
@@ -44,6 +48,10 @@ app = typer.Typer(
 
 
 @app.command()
+@trace_sync_function(
+    span_name="cli.etl_command",
+    attributes={"component": "cli", "operation": "etl", "stage": "orchestration"}
+)
 def etl(
     limit: Optional[int] = typer.Option(
         None,
@@ -112,7 +120,15 @@ def etl(
         )
         initialize_tracing(trace_config)
         console.print("[bold cyan]✓ Distributed tracing initialized[/bold cyan]")
+        
+        # Get tracer and record initialization event
+        tracer = get_tracer(__name__)
+        span = tracer.start_span("cli.etl_initialization")
+        span.set_attribute("dry_run", dry_run)
+        span.set_attribute("limit", limit if limit else "unlimited")
+        span.end()
     except Exception as e:
+        logger.warning(f"Tracing initialization failed: {e}")
         console.print(f"[bold yellow]⚠ Tracing initialization warning: {e}[/bold yellow]")
     
     # FIX: Use settings instance, not Settings class
@@ -161,7 +177,10 @@ def etl(
             console.print(f"[bold yellow]⚠ Tracing shutdown warning: {e}[/bold yellow]")
 
 
-@trace_async_function(attributes={"component": "cli", "operation": "etl_pipeline"})
+@trace_async_function(
+    span_name="cli.etl_pipeline",
+    attributes={"component": "cli", "operation": "etl", "stage": "pipeline"}
+)
 async def _run_etl(
     identifiers_file: Path,
     limit: Optional[int],
@@ -202,6 +221,10 @@ async def _run_etl(
         
         # Display results
         _display_report(report, dry_run)
+        
+        # Index results if not dry-run
+        if not dry_run:
+            await _run_indexing(db_manager, console)
         
     except Exception as e:
         logger.exception("ETL execution error")
@@ -276,7 +299,54 @@ def _display_report(report: dict, dry_run: bool):
         console.print("\n[bold green]✓ Data successfully committed to database[/bold green]")
 
 
+async def _run_indexing(db_manager, console):
+    """Run vector indexing for semantic search after ETL"""
+    try:
+        console.print("\n[bold cyan]→ Starting Vector Indexing...[/bold cyan]\n")
+        
+        # Create indexing service
+        indexing_service = IndexingService(database=db_manager)
+        
+        # Run indexing
+        progress = indexing_service.index_all_datasets(supporting_docs=False)
+        
+        # Display indexing results
+        indexing_table = Table(title="Indexing Results", show_header=True, header_style="bold magenta")
+        indexing_table.add_column("Metric", style="cyan", width=30)
+        indexing_table.add_column("Count", style="green", justify="right")
+        
+        indexing_table.add_row("Total Datasets", str(progress.total_datasets))
+        indexing_table.add_row("Successfully Indexed", str(progress.total_indexed))
+        indexing_table.add_row("Failed", str(progress.total_failed))
+        indexing_table.add_row("Success Rate", f"{progress.success_rate:.1f}%")
+        
+        if progress.duration_seconds:
+            indexing_table.add_row("Duration (seconds)", f"{progress.duration_seconds:.2f}")
+        
+        console.print(indexing_table)
+        
+        if progress.errors:
+            console.print("\n[bold yellow]⚠ Indexing Errors:[/bold yellow]")
+            for error in progress.errors[:5]:
+                console.print(f"  • {error}")
+            if len(progress.errors) > 5:
+                console.print(f"  ... and {len(progress.errors) - 5} more")
+        
+        if progress.success_rate == 100:
+            console.print("\n[bold green]✓ Indexing completed successfully[/bold green]")
+        else:
+            console.print("\n[bold yellow]⚠ Indexing completed with errors[/bold yellow]")
+    
+    except Exception as e:
+        console.print(f"\n[bold yellow]⚠ Indexing failed (non-fatal): {e}[/bold yellow]")
+        logger.warning(f"Indexing failed: {e}")
+
+
 @app.command()
+@trace_sync_function(
+    span_name="cli.validate_config",
+    attributes={"component": "cli", "operation": "validate_config"}
+)
 def validate_config(
     verbose: bool = typer.Option(
         False,
@@ -308,6 +378,10 @@ def validate_config(
 
 
 @app.command()
+@trace_sync_function(
+    span_name="cli.init_db",
+    attributes={"component": "cli", "operation": "init_db"}
+)
 def init_db():
     """Initialize or reset the database"""
     console.print("\n[bold blue]═══ Database Initialization ═══[/bold blue]\n")
@@ -324,6 +398,10 @@ def init_db():
 
 
 @app.command()
+@trace_sync_function(
+    span_name="cli.check_supporting_docs",
+    attributes={"component": "cli", "operation": "check_supporting_docs"}
+)
 def check_supporting_docs(
     identifier: Optional[str] = typer.Option(
         None,
@@ -438,6 +516,10 @@ def check_supporting_docs(
 
 
 @app.command()
+@trace_sync_function(
+    span_name="cli.index_command",
+    attributes={"component": "cli", "operation": "index", "stage": "orchestration"}
+)
 def index(
     verbose: bool = typer.Option(
         False,
