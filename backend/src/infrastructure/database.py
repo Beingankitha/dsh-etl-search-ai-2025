@@ -82,10 +82,13 @@ class Database:
 
             # Use isolation_level='DEFERRED' for proper transaction control
             # This prevents autocommit and requires explicit commit()
+            # Use check_same_thread=False for async/multi-threaded environments
+            # (Uvicorn uses multiple worker threads per request)
             self.connection = sqlite3.connect(
                 str(self.db_path),
                 isolation_level='DEFERRED',  # ← CRITICAL for rollback support
-                timeout=30.0
+                timeout=30.0,
+                check_same_thread=False  # ← CRITICAL for async environments
             )
             self.connection.row_factory = sqlite3.Row
             
@@ -97,7 +100,6 @@ class Database:
             settings = get_settings()
             if settings.database_echo:
                 self.connection.set_trace(print)
-            
             logger.info(f"Connected to database: {self.db_path} (isolation_level=DEFERRED)")
         except sqlite3.Error as e:
             logger.error(f"Failed to connect to database: {e}")
