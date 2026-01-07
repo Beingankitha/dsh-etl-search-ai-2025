@@ -70,7 +70,7 @@ A **production-ready** dataset search and discovery platform with **ETL pipeline
 ## System Screenshots
 
 ### Home Page & Search Interface
-![Search Interface](screenshots/screenshot-home.png)
+![Search Interface](screenshots/Screenshot-home.png)
 *Semantic search page with dataset cards and filter options*
 
 ### Search with Automatic Suggestions
