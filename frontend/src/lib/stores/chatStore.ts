@@ -1,16 +1,23 @@
 import { writable, derived } from 'svelte/store';
-import type { ChatMessage } from '$lib/api/types';
+import type { ChatMessage, SearchResult } from '$lib/api/types';
 import type { ChatApiService } from '$lib/services/chat.service';
 import { ApiError } from '$lib/api/errors';
 
+interface MessageWithSources {
+	message: ChatMessage;
+	sources: SearchResult[];
+}
+
 interface ChatState {
 	messages: ChatMessage[];
+	messagesSources: Map<number, SearchResult[]>; // Map message index to sources
 	loading: boolean;
 	error: string | null;
 }
 
 const initialState: ChatState = {
 	messages: [],
+	messagesSources: new Map(),
 	loading: false,
 	error: null
 };
@@ -66,14 +73,21 @@ export function createChatStore(chatService: ChatApiService) {
 				// Send to API
 				const response = await chatService.sendMessage(message, currentMessages);
 
-				// Add assistant response
+				// Add assistant response with sources
 				if (response.message) {
-					store.update((state) => ({
-						...state,
-						messages: [...state.messages, response.message],
-						loading: false,
-						error: null
-					}));
+					store.update((state) => {
+						const newMessages = [...state.messages, response.message];
+						const newSources = new Map(state.messagesSources);
+						// Store sources at the index of the assistant message
+						newSources.set(newMessages.length - 1, response.sources || []);
+						return {
+							...state,
+							messages: newMessages,
+							messagesSources: newSources,
+							loading: false,
+							error: null
+						};
+					});
 				}
 
 				return response;
@@ -108,6 +122,15 @@ export function createChatStore(chatService: ChatApiService) {
 				state = s;
 			})();
 			return state!;
+		},
+
+		getSources: (messageIndex: number) => {
+			let sources: SearchResult[] = [];
+			store.subscribe((state) => {
+				sources = state.messagesSources.get(messageIndex) || [];
+			})();
+			return sources;
 		}
 	};
 }
+

@@ -65,7 +65,7 @@ class Settings(BaseSettings):
 
     # Ollama LLM Configuration (Issue #7)
     ollama_host: str = "http://localhost:11434"
-    ollama_model: str = "llama3.2"
+    ollama_model: str = "mistral"  # Changed from llama3.2 to match downloaded model to mistral
     ollama_timeout: int = 120
 
     # Logging

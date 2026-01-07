@@ -258,13 +258,14 @@ class IndexingService:
     @with_span("index_supporting_documents")
     def _index_supporting_documents(self, progress: IndexingProgress) -> None:
         """
-        Index supporting documents from database.
+        Index supporting documents from database with memory-efficient batching.
         
         Process:
-        1. Load supporting documents with extracted text
+        1. Load supporting documents with extracted text in small batches
         2. Chunk text for RAG
         3. Generate embeddings for chunks
         4. Store in vector store with dataset linkage
+        5. Clear batch memory before loading next batch
         
         Args:
             progress: IndexingProgress to update
@@ -283,60 +284,72 @@ class IndexingService:
                 
                 logger.info(f"Found {progress.total_docs} documents with text content")
                 
-                # ===== Prepare Document Chunks =====
-                doc_batch = []
-                for doc in docs:
-                    if not doc.text_content:
+                # Process in small batches to avoid memory explosion
+                batch_size = 10  # Process 10 documents at a time
+                
+                for batch_start in range(0, len(docs), batch_size):
+                    batch_end = min(batch_start + batch_size, len(docs))
+                    batch_docs = docs[batch_start:batch_end]
+                    
+                    logger.debug(f"Processing batch {batch_start//batch_size + 1}: docs {batch_start+1}-{batch_end}")
+                    
+                    # ===== Prepare Document Chunks for this batch =====
+                    doc_batch = []
+                    for doc in batch_docs:
+                        if not doc.text_content:
+                            continue
+                        
+                        try:
+                            # Chunk document text
+                            chunks = self.text_chunker.chunk_text(doc.text_content)
+                            
+                            # Prepare metadata
+                            metadata = {
+                                "dataset_id": doc.dataset_id,
+                                "document_url": doc.document_url,
+                                "title": doc.title,
+                                "file_extension": doc.file_extension or ""
+                            }
+                            
+                            # Add each chunk to batch
+                            for chunk_idx, chunk in enumerate(chunks):
+                                doc_batch.append({
+                                    "doc_id": f"{doc.id}_chunk_{chunk_idx}",
+                                    "text": chunk,
+                                    "metadata": metadata
+                                })
+                            
+                        except Exception as e:
+                            logger.warning(f"Error processing document {doc.id}: {e}")
+                            progress.errors.append(f"Doc {doc.id}: {e}")
+                            progress.total_docs_failed += 1
+                            continue
+                    
+                    if not doc_batch:
+                        logger.debug(f"No chunks in batch {batch_start//batch_size + 1}")
                         continue
                     
-                    try:
-                        # Chunk document text
-                        chunks = self.text_chunker.chunk_text(doc.text_content)
-                        
-                        # Prepare metadata
-                        metadata = {
-                            "dataset_id": doc.dataset_id,
-                            "document_url": doc.document_url,
-                            "title": doc.title,
-                            "file_extension": doc.file_extension or ""
-                        }
-                        
-                        # Add each chunk to batch
-                        for chunk_idx, chunk in enumerate(chunks):
-                            doc_batch.append({
-                                "doc_id": f"{doc.id}_chunk_{chunk_idx}",
-                                "text": chunk,
-                                "metadata": metadata
-                            })
-                        
-                    except Exception as e:
-                        logger.warning(f"Error processing document {doc.id}: {e}")
-                        progress.errors.append(f"Doc {doc.id}: {e}")
-                        progress.total_docs_failed += 1
-                        continue
-                
-                if not doc_batch:
-                    logger.warning("No document chunks to index")
-                    return
-                
-                # ===== Generate Embeddings =====
-                logger.info(f"Generating embeddings for {len(doc_batch)} document chunks...")
-                chunk_texts = [d["text"] for d in doc_batch]
-                embeddings = self.embedding_service.embed_texts(chunk_texts)
-                
-                # ===== Store in Vector Store =====
-                for i, item in enumerate(doc_batch):
-                    try:
-                        self.vector_store.add_supporting_document(
-                            doc_id=item["doc_id"],
-                            embedding=embeddings[i],
-                            metadata=item["metadata"],
-                            text_chunk=item["text"]
-                        )
-                        progress.total_docs_indexed += 1
-                    except Exception as e:
-                        logger.warning(f"Error adding document chunk {item['doc_id']}: {e}")
-                        progress.errors.append(str(e))
+                    # ===== Generate Embeddings for this batch =====
+                    logger.debug(f"Generating embeddings for {len(doc_batch)} chunks in batch...")
+                    chunk_texts = [d["text"] for d in doc_batch]
+                    embeddings = self.embedding_service.embed_texts(chunk_texts)
+                    
+                    # ===== Store in Vector Store =====
+                    for i, item in enumerate(doc_batch):
+                        try:
+                            self.vector_store.add_supporting_document(
+                                doc_id=item["doc_id"],
+                                embedding=embeddings[i],
+                                metadata=item["metadata"],
+                                text_chunk=item["text"]
+                            )
+                            progress.total_docs_indexed += 1
+                        except Exception as e:
+                            logger.warning(f"Error adding document chunk {item['doc_id']}: {e}")
+                            progress.errors.append(str(e))
+                    
+                    # Clear memory
+                    del doc_batch, chunk_texts, embeddings
                 
                 logger.info(
                     f"✓ Supporting documents indexing complete: "
@@ -401,8 +414,38 @@ class IndexingService:
             logger.error(f"Error indexing single dataset: {e}")
             return False
 
+    @with_span("index_supporting_documents_only")
+    def index_supporting_documents_only(self, limit: Optional[int] = None) -> IndexingProgress:
+        """
+        Index ONLY supporting documents (skip dataset indexing).
+        
+        Useful for batch processing supporting documents without 
+        re-indexing all datasets.
+        
+        Process:
+        1. Load supporting documents with extracted text from database
+        2. Chunk text for RAG
+        3. Generate embeddings for chunks
+        4. Store in vector store with dataset linkage
+        
+        Args:
+            limit: Maximum number of documents to process (for testing)
+            
+        Returns:
+            IndexingProgress with statistics
+        """
+        progress = IndexingProgress()
+        progress.started_at = datetime.now(timezone.utc)
+        
+        try:
+            logger.info("Starting supporting documents indexing (standalone)...")
+            self._index_supporting_documents(progress)
+            progress.completed_at = datetime.now(timezone.utc)
+            return progress
+            
+        except Exception as e:
+            logger.error(f"Critical error during supporting docs indexing: {e}")
+            progress.errors.append(f"CRITICAL: {str(e)}")
+            progress.completed_at = datetime.now(timezone.utc)
+            raise
 
-__all__ = [
-    "IndexingService",
-    "IndexingProgress",
-]

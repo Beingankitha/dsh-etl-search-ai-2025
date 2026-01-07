@@ -37,6 +37,7 @@ dependencies = [
     "opentelemetry-exporter-prometheus>=0.42b0",
     "opentelemetry-instrumentation>=0.42b0",
     "deprecated>=1.2.0",
+    "torch>=2.2.0",
 ]
 
 [dependency-groups]

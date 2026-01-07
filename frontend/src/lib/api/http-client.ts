@@ -122,9 +122,10 @@ export class HttpClient {
 	}
 
 	private calculateBackoff(attempt: number): number {
-		// Exponential backoff: 100ms, 200ms, 400ms, ...
-		const delayMs = 100 * Math.pow(2, attempt);
-		// Add jitter (±20%)
+		// Exponential backoff with max cap: 100ms, 200ms, 400ms, 800ms, max 5000ms
+		// Prevents excessive delays on repeated failures
+		const delayMs = Math.min(100 * Math.pow(2, attempt), 5000);
+		// Add jitter (±20%) to prevent thundering herd
 		const jitter = delayMs * 0.2 * (Math.random() - 0.5);
 		return delayMs + jitter;
 	}

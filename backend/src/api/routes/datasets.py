@@ -27,9 +27,15 @@ class DatasetListResponse(BaseModel):
 
 
 # Dependency Injection
-def get_unit_of_work() -> UnitOfWork:
-    """Instantiate UnitOfWork."""
-    return UnitOfWork()
+async def get_unit_of_work() -> UnitOfWork:
+    """Instantiate and initialize UnitOfWork.
+    
+    Creates a new database connection and properly initializes
+    all repositories through the context manager protocol.
+    """
+    uow = UnitOfWork()
+    uow.__enter__()  # Initialize all repositories
+    return uow
 
 
 @router.get("", response_model=DatasetListResponse)
@@ -73,6 +79,10 @@ async def list_datasets(
     try:
         logger.debug(f"Listing datasets: limit={limit} offset={offset}")
         
+        # Validate pagination parameters
+        if offset < 0 or limit < 1 or limit > 100:
+            raise ValueError(f"Invalid pagination: limit={limit}, offset={offset}")
+        
         # Get total count
         total = uow.datasets.count()
         
@@ -94,7 +104,7 @@ async def list_datasets(
             for ds in db_datasets
         ]
         
-        logger.info(f"Returning {len(datasets)} of {total} datasets")
+        logger.info(f"Returning {len(datasets)} of {total} datasets (limit={limit}, offset={offset})")
         
         return DatasetListResponse(
             total=total,
@@ -103,11 +113,17 @@ async def list_datasets(
             datasets=datasets,
         )
         
+    except ValueError as e:
+        logger.warning(f"Invalid pagination parameters: {e}")
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid pagination parameters: {str(e)}"
+        )
     except Exception as e:
         logger.error(f"Error listing datasets: {e}", exc_info=True)
         raise HTTPException(
             status_code=500,
-            detail="Failed to retrieve datasets"
+            detail=f"Failed to retrieve datasets: {type(e).__name__}"
         )
 
 

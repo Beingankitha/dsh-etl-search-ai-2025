@@ -14,6 +14,7 @@ import { DefaultSearchApiService, type SearchApiService } from '$lib/services/se
 import { DefaultChatApiService, type ChatApiService } from '$lib/services/chat.service';
 import { createSearchStore } from '$lib/stores/searchStore';
 import { createChatStore } from '$lib/stores/chatStore';
+import { initializeLogger } from '$lib/logger';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
@@ -91,3 +92,8 @@ export const { getSearchStore, getChatStore, getSearchService, getChatService } 
 	getSearchService: () => container.getSearchService(),
 	getChatService: () => container.getChatService()
 };
+
+/**
+ * Export logger initialization function
+ */
+export { initializeLogger } from '$lib/logger';

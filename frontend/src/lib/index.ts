@@ -22,3 +22,6 @@ export { createChatStore } from './stores/chatStore';
 
 // Export container
 export { container, getSearchStore, getChatStore, getSearchService, getChatService } from './container';
+// Export logging utilities
+export { logger, initializeLogger, getLogger } from './logger';
+export type { LogLevel } from './logger';

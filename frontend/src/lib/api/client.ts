@@ -25,11 +25,10 @@ export async function sendChatMessage(
 	message: string,
 	history: ChatMessage[] = []
 ): Promise<ChatResponse> {
-	return httpClient.request<ChatResponse>('/api/chat', {
+	return httpClient.request<ChatResponse>('/api/chat/send', {
 		method: 'POST',
 		body: {
-			message,
-			history
+			messages: [...history, { role: 'user', content: message }]
 		},
 		config: { timeout: 60000, retries: 1 }
 	});
@@ -69,10 +68,12 @@ export async function getRelatedDatasets(fileIdentifier: string, limit: number =
  * Get search suggestions
  */
 export async function getSearchSuggestions(query: string, limit: number = 5) {
-	return httpClient.request('/api/search/suggestions', {
+	const params = new URLSearchParams({ q: query });
+	const response = await httpClient.request<{ suggestions: string[] }>(`/api/search/suggestions?${params.toString()}`, {
 		method: 'GET',
 		config: { timeout: 10000, retries: 2 }
 	});
+	return response.suggestions || [];
 }
 
 /**

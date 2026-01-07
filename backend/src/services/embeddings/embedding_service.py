@@ -142,27 +142,48 @@ class EmbeddingService:
             RuntimeError: If model initialization fails
         """
         try:
+            import torch
+            import platform
+            
             logger.info(
                 f"Loading embedding model: {self.config.model_name} "
                 f"on device: {self.config.device}"
             )
             
-            self._model = SentenceTransformer(
-                self.config.model_name,
-                device=self.config.device,
-                trust_remote_code=False
-            )
+            # Determine optimal device for this machine
+            device = self.config.device
+            system = platform.system()
+            
+            # For macOS with Apple Silicon, prefer CPU over MPS due to compatibility
+            if system == "Darwin":  # macOS
+                if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+                    logger.info("Apple Silicon detected, using CPU for stability")
+                device = "cpu"
+            elif device == "cuda" and not torch.cuda.is_available():
+                logger.warning("CUDA not available, falling back to CPU")
+                device = "cpu"
+            
+            # Load model first WITHOUT device parameter to avoid meta tensor issues
+            logger.debug(f"Initializing SentenceTransformer...")
+            self._model = SentenceTransformer(self.config.model_name, trust_remote_code=False)
+            
+            # Then move to the correct device
+            logger.debug(f"Moving model to device: {device}")
+            self._model = self._model.to(device)
+            
+            # Ensure model is in eval mode
+            self._model.eval()
             
             # Cache embedding dimension
             self._embedding_dim = self._model.get_sentence_embedding_dimension()
             
             logger.info(
                 f"✓ Embedding model loaded successfully. "
-                f"Dimension: {self._embedding_dim}"
+                f"Dimension: {self._embedding_dim}, Device: {device}"
             )
             
         except Exception as e:
-            logger.error(f"Failed to load embedding model: {e}")
+            logger.error(f"Failed to load embedding model: {e}", exc_info=True)
             raise RuntimeError(f"Embedding model initialization failed: {e}") from e
     
     def embed_text(self, text: str) -> np.ndarray:
