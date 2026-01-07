@@ -89,11 +89,13 @@ def etl_service(temp_identifiers_file, mock_unit_of_work):
     service.ceh_extractor = AsyncMock()
     
     # Mock the cached fetcher that wraps the extractor
-    service.cached_fetcher = AsyncMock()
-    service.cached_fetcher.fetch_xml = AsyncMock()
-    service.cached_fetcher.fetch_json = AsyncMock()
-    service.cached_fetcher.fetch_rdf = AsyncMock()
-    service.cached_fetcher.fetch_schema_org = AsyncMock()
+    service.cached_fetcher = MagicMock()
+    service.cached_fetcher.fetch_xml = AsyncMock(return_value="<xml>...</xml>")
+    service.cached_fetcher.fetch_json = AsyncMock(return_value='{"key": "value"}')
+    service.cached_fetcher.fetch_rdf = AsyncMock(return_value="<rdf>...</rdf>")
+    service.cached_fetcher.fetch_schema_org = AsyncMock(return_value=None)
+    service.cached_fetcher.clear_fetch_cache_status = MagicMock()
+    service.cached_fetcher.fetch_cache_status = {}
     
     service.iso_parser = AsyncMock()
     service.json_parser = AsyncMock()

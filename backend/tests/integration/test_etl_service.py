@@ -42,13 +42,13 @@ def temp_identifiers_file():
 @pytest.fixture
 def mock_unit_of_work():
     """Mock UnitOfWork"""
-    mock_uow = AsyncMock(spec=UnitOfWork)
-    mock_uow.datasets = AsyncMock()
-    mock_uow.metadata_documents = AsyncMock()
-    mock_uow.supporting_documents = AsyncMock()
+    mock_uow = MagicMock(spec=UnitOfWork)
+    mock_uow.datasets = MagicMock()
+    mock_uow.metadata_documents = MagicMock()
+    mock_uow.supporting_documents = MagicMock()
     mock_uow.__aenter__ = AsyncMock(return_value=mock_uow)
     mock_uow.__aexit__ = AsyncMock(return_value=None)
-    mock_uow.commit = AsyncMock()
+    mock_uow.commit = MagicMock()
     return mock_uow
 
 
@@ -68,11 +68,13 @@ def etl_service_with_mocks(temp_identifiers_file, mock_unit_of_work):
     service.ceh_extractor = AsyncMock()
     
     # Mock the cached fetcher that wraps the extractor
-    service.cached_fetcher = AsyncMock()
-    service.cached_fetcher.fetch_xml = AsyncMock()
-    service.cached_fetcher.fetch_json = AsyncMock()
-    service.cached_fetcher.fetch_rdf = AsyncMock()
-    service.cached_fetcher.fetch_schema_org = AsyncMock()
+    service.cached_fetcher = MagicMock()
+    service.cached_fetcher.fetch_xml = AsyncMock(return_value="<xml>...</xml>")
+    service.cached_fetcher.fetch_json = AsyncMock(return_value='{"key": "value"}')
+    service.cached_fetcher.fetch_rdf = AsyncMock(return_value="<rdf>...</rdf>")
+    service.cached_fetcher.fetch_schema_org = AsyncMock(return_value=None)
+    service.cached_fetcher.clear_fetch_cache_status = MagicMock()
+    service.cached_fetcher.fetch_cache_status = {}
     
     # Create regular mocks for parsers with async parse methods
     service.iso_parser = MagicMock()
