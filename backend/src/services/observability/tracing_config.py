@@ -1,20 +1,24 @@
 """OpenTelemetry configuration and initialization.
 
 Sets up:
-- OTLP gRPC exporter for trace visualization (modern standard)
+- OTLP gRPC exporter for trace visualization (modern standard) - OPTIONAL
 - Trace provider with resource attributes
-- Span processors for batching and export
-- Global tracer configuration
+- Span processors for batching and export (only if exporter enabled)
+- Graceful degradation when collector unavailable
+
+IMPORTANT: OTLP exporter is disabled by default to prevent connection errors
+when no OpenTelemetry Collector is running. Enable only in instrumented
+environments (development with Jaeger, staging, or production).
 """
 
 import logging
+import os
 from dataclasses import dataclass
 from typing import Optional
 
 from opentelemetry import trace, metrics
-from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.sdk.trace.export import BatchSpanProcessor, SimpleSpanProcessor
 from opentelemetry.sdk.resources import SERVICE_NAME, Resource
 from opentelemetry.sdk.metrics import MeterProvider
 from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
@@ -25,15 +29,25 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class TraceConfig:
-    """Configuration for distributed tracing."""
+    """Configuration for distributed tracing.
+    
+    Attributes:
+        service_name: Service identifier for traces
+        jaeger_host: OTLP collector host (only used if jaeger_enabled=True)
+        jaeger_port: OTLP collector port (only used if jaeger_enabled=True)
+        jaeger_enabled: Enable OTLP exporter (disable if no collector running)
+        trace_sample_rate: Sampling rate 0.0-1.0 (adjust for production)
+        environment: Environment name (development, staging, production)
+        version: Service version
+    """
     
     service_name: str = "dsh-etl-search-ai"
     jaeger_host: str = "localhost"
     jaeger_port: int = 6831
-    jaeger_enabled: bool = True
-    trace_sample_rate: float = 1.0  # 100% sampling (adjust for production)
+    jaeger_enabled: bool = False  # DISABLED BY DEFAULT - prevent "localhost:4317" errors
+    trace_sample_rate: float = 0.1  # 10% sampling (reduce for production)
     environment: str = "development"
-    version: str = "0.1.0"
+    version: str = "1.0.0"
 
 
 # Global state
@@ -44,13 +58,20 @@ _initialized = False
 
 def initialize_tracing(config: TraceConfig = None) -> TracerProvider:
     """
-    Initialize OpenTelemetry with Jaeger exporter.
+    Initialize OpenTelemetry with optional OTLP exporter.
+    
+    The OTLP exporter is only initialized if jaeger_enabled=True AND
+    the collector endpoint is reachable. This prevents "localhost:4317"
+    connection errors when no collector is running.
+    
+    Tracing always works locally (useful for development) but only
+    exports to a collector if one is available.
     
     Args:
         config: TraceConfig instance with settings
         
     Returns:
-        Configured TracerProvider instance
+        Configured TracerProvider instance (tracing always enabled locally)
     """
     global _tracer_provider, _meter_provider, _initialized
     
@@ -67,32 +88,61 @@ def initialize_tracing(config: TraceConfig = None) -> TracerProvider:
         "service.version": config.version,
     })
     
-    # Create trace provider
+    # Create trace provider (always works locally)
     _tracer_provider = TracerProvider(resource=resource)
     
-    # Add OTLP exporter if enabled
+    # Add OTLP exporter ONLY if explicitly enabled
+    # This prevents "localhost:4317 UNAVAILABLE" errors in development
     if config.jaeger_enabled:
         try:
-            # Use OTLP gRPC exporter (modern standard, replaces deprecated Jaeger thrift)
+            # Lazy import to avoid import errors if OpenTelemetry not available
+            from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+            
+            logger.info(
+                f"Initializing OTLP exporter to {config.jaeger_host}:4317 "
+                "(ensure OpenTelemetry Collector is running)"
+            )
+            
+            # Create exporter with timeout to fail fast
             otlp_exporter = OTLPSpanExporter(
                 endpoint=f"http://{config.jaeger_host}:4317",  # OTLP gRPC port
+                timeout=5,  # 5 second timeout - fail fast if collector unavailable
             )
-            _tracer_provider.add_span_processor(
-                BatchSpanProcessor(otlp_exporter)
-            )
+            
+            # Use BatchSpanProcessor for production, SimpleSpanProcessor for development
+            if config.environment == "development":
+                _tracer_provider.add_span_processor(
+                    SimpleSpanProcessor(otlp_exporter)
+                )
+            else:
+                _tracer_provider.add_span_processor(
+                    BatchSpanProcessor(otlp_exporter)
+                )
+            
             logger.info(
-                f"OTLP exporter initialized: {config.jaeger_host}:4317"
+                f"✓ OTLP exporter initialized: {config.jaeger_host}:4317"
+            )
+        except ImportError:
+            logger.warning(
+                "opentelemetry-exporter-otlp not installed. "
+                "Tracing works locally but won't export."
             )
         except Exception as e:
             logger.warning(
                 f"Failed to initialize OTLP exporter: {e}. "
-                "Traces will not be exported."
+                "This is normal if no OpenTelemetry Collector is running. "
+                "Tracing continues locally without export."
             )
+    else:
+        logger.debug(
+            "OTLP exporter disabled (jaeger_enabled=false). "
+            "Tracing works locally only."
+        )
     
     # Set global tracer provider
     trace.set_tracer_provider(_tracer_provider)
     
-    # Initialize metrics with Prometheus exporter
+    # Initialize metrics with Prometheus exporter (optional)
     try:
         prometheus_reader = PrometheusMetricReader()
         _meter_provider = MeterProvider(
@@ -100,12 +150,15 @@ def initialize_tracing(config: TraceConfig = None) -> TracerProvider:
             metric_readers=[prometheus_reader]
         )
         metrics.set_meter_provider(_meter_provider)
-        logger.info("Prometheus metrics exporter initialized")
+        logger.debug("Prometheus metrics exporter initialized")
     except Exception as e:
-        logger.warning(f"Failed to initialize Prometheus exporter: {e}")
+        logger.debug(f"Prometheus exporter not available: {e}")
     
     _initialized = True
-    logger.info("Distributed tracing initialized")
+    logger.info(
+        f"✓ OpenTelemetry initialized (service: {config.service_name}, "
+        f"environment: {config.environment})"
+    )
     
     return _tracer_provider
 

@@ -33,7 +33,7 @@ from src.logging_config import get_logger, setup_logging
 from src.services.observability.tracing_config import initialize_tracing, shutdown_tracing
 from src.api.middleware.logging import RequestLoggingMiddleware, TraceContextMiddleware
 from src.api.exceptions import APIException, ErrorResponse
-from src.api.routes import health_router, search_router, datasets_router
+from src.api.routes import health_router, search_router, datasets_router, chat_router
 
 logger = get_logger(__name__)
 tracer = trace.get_tracer(__name__)
@@ -103,11 +103,20 @@ def create_app(settings: Optional[object] = None) -> FastAPI:
     
     # Determine allowed origins based on environment
     if settings.environment == "production":
-        # Production: Be strict with origins
+        # Production: Be strict with origins, read from environment
         allowed_origins = [
-            "https://your-domain.com",  # Replace with actual domain
-            "https://www.your-domain.com",
+            origin.strip() 
+            for origin in (
+                settings.get("cors_origins", "https://your-domain.com")
+                .split(",")
+            )
+            if origin.strip()
         ]
+        logger.info(f"Production CORS origins: {allowed_origins}")
+        
+        # Warn if still using placeholder
+        if any("your-domain.com" in origin for origin in allowed_origins):
+            logger.warning("⚠️  Production CORS origins contain placeholder domain!")
     else:
         # Development: Allow all localhost variants and common dev ports
         allowed_origins = [
@@ -133,6 +142,7 @@ def create_app(settings: Optional[object] = None) -> FastAPI:
             "http://[::1]:5176",
             "http://[::1]:5177",
         ]
+        logger.debug(f"Development CORS enabled for {len(allowed_origins)} origins")
     
     app.add_middleware(
         CORSMiddleware,
@@ -332,6 +342,7 @@ def create_app(settings: Optional[object] = None) -> FastAPI:
     # API v1 endpoints (grouped under /api prefix)
     app.include_router(search_router, prefix="/api")
     app.include_router(datasets_router, prefix="/api")
+    app.include_router(chat_router, prefix="/api")
     
     # ========================================================================
     # Root Endpoint
@@ -353,11 +364,12 @@ def create_app(settings: Optional[object] = None) -> FastAPI:
                 "health": "/health",
                 "search": "/api/search",
                 "datasets": "/api/datasets",
+                "chat": "/api/chat",
             },
         }
     
     logger.info("FastAPI application initialized successfully")
-    logger.info(f"Available endpoints: /health, /docs, /api/search, /api/datasets")
+    logger.info(f"Available endpoints: /health, /docs, /api/search, /api/datasets, /api/chat")
     
     return app
 

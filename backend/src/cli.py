@@ -669,5 +669,159 @@ def index(
         raise typer.Exit(1)
 
 
+@app.command()
+def vectorize_supporting_docs(
+    verbose: bool = typer.Option(
+        False,
+        "--verbose",
+        "-v",
+        help="Enable verbose logging"
+    ),
+    clear_first: bool = typer.Option(
+        False,
+        "--clear-first",
+        help="Clear supporting docs vectors before indexing"
+    ),
+    limit: Optional[int] = typer.Option(
+        None,
+        "--limit",
+        "-l",
+        help="Limit number of documents to vectorize (for testing)"
+    ),
+):
+    """
+    Vectorize supporting documents for RAG (Retrieval Augmented Generation).
+    
+    Process:
+    1. Load supporting documents with extracted text from database
+    2. Chunk text for semantic meaning extraction
+    3. Generate embeddings for each chunk
+    4. Store in ChromaDB vector store for semantic search and RAG
+    
+    This enables:
+    - Finding relevant documents for a dataset query
+    - Extracting supporting information for conversational search
+    - Improving search quality with multiple document sources
+    
+    Examples:
+        uv run python cli_main.py vectorize-supporting-docs --verbose
+        uv run python cli_main.py vectorize-supporting-docs --limit 50
+        uv run python cli_main.py vectorize-supporting-docs --clear-first --verbose
+        uv run dsh-etl vectorize-supporting-docs
+    """
+    
+    if verbose:
+        logging.getLogger().setLevel(logging.DEBUG)
+        console.print("[bold cyan]✓ Verbose logging enabled (DEBUG)[/bold cyan]")
+    
+    console.print("\n[bold blue]═══════════════════════════════════════[/bold blue]")
+    console.print("[bold blue]  Supporting Documents Vectorization[/bold blue]")
+    console.print("[bold blue]═══════════════════════════════════════[/bold blue]\n")
+    
+    try:
+        # Initialize services
+        db = Database()
+        db.connect()
+        
+        indexing_service = IndexingService(database=db, extract_supporting_docs=True)
+        
+        # Clear supporting docs vectors if requested
+        if clear_first:
+            console.print("[yellow]⚠  Clearing existing supporting document vectors...[/yellow]")
+            # Load all supporting docs from vector store and delete them
+            try:
+                with UnitOfWork(db) as uow:
+                    docs = uow.supporting_documents.get_with_text_content()
+                    for doc in docs:
+                        try:
+                            indexing_service.vector_store.delete_supporting_document(f"doc-{doc.id}")
+                        except:
+                            pass  # Ignore if doc not in vector store
+                console.print("[bold green]✓ Supporting document vectors cleared[/bold green]\n")
+            except Exception as e:
+                logger.warning(f"Could not clear all vectors: {e}")
+        
+        # Get document count
+        with UnitOfWork(db) as uow:
+            total_docs = len(uow.supporting_documents.get_with_text_content())
+        
+        if total_docs == 0:
+            console.print("[yellow]⚠  No supporting documents with text content found in database[/yellow]\n")
+            raise typer.Exit(1)
+        
+        docs_to_process = total_docs if limit is None else min(limit, total_docs)
+        console.print(f"[cyan]▶ Starting vectorization of {docs_to_process}/{total_docs} documents...[/cyan]\n")
+        
+        # Run vectorization
+        progress = indexing_service.index_supporting_documents_only(limit=docs_to_process)
+        
+        # Display results
+        table = Table(title="[bold]Vectorization Results[/bold]", show_header=True, header_style="bold cyan")
+        table.add_column("Metric", style="cyan")
+        table.add_column("Value", style="green")
+        table.add_column("Status", style="bold")
+        
+        table.add_row(
+            "Supporting Docs in DB",
+            str(progress.total_docs),
+            "✓" if progress.total_docs > 0 else "✗"
+        )
+        table.add_row(
+            "Doc Chunks Vectorized",
+            str(progress.total_docs_indexed),
+            "✓" if progress.total_docs_indexed > 0 else "⚠"
+        )
+        
+        if progress.total_docs > 0:
+            vectorization_rate = (progress.total_docs_indexed / progress.total_docs) * 100
+            table.add_row(
+                "Success Rate",
+                f"{vectorization_rate:.1f}%",
+                "✓" if vectorization_rate >= 90 else "⚠"
+            )
+        
+        if progress.errors:
+            table.add_row(
+                "Errors",
+                str(len(progress.errors)),
+                "⚠"
+            )
+        
+        if progress.duration_seconds:
+            table.add_row(
+                "Duration",
+                f"{progress.duration_seconds:.1f}s",
+                "✓"
+            )
+        
+        console.print(table)
+        
+        # Display vector store stats
+        console.print("\n[bold cyan]Vector Store Statistics:[/bold cyan]")
+        docs_in_store = indexing_service.vector_store.get_supporting_docs_count()
+        console.print(f"  • Supporting doc chunks in vector store: [green]{docs_in_store}[/green]")
+        
+        # Display errors if any
+        if progress.errors:
+            console.print("\n[yellow]⚠  Errors encountered:[/yellow]")
+            for i, error in enumerate(progress.errors[:10], 1):
+                console.print(f"  {i}. {error}")
+            if len(progress.errors) > 10:
+                console.print(f"  ... and {len(progress.errors) - 10} more")
+        
+        console.print(f"\n[bold green]✓ Vectorization complete![/bold green]\n")
+        console.print("[cyan]Supporting documents are now ready for:[/cyan]")
+        console.print("  • Semantic search using natural language queries")
+        console.print("  • RAG (Retrieval Augmented Generation) for conversational search")
+        console.print("  • Finding relevant supporting materials for dataset queries\n")
+        
+    except Exception as e:
+        console.print(f"[bold red]✗ Vectorization failed: {e}[/bold red]\n")
+        if verbose:
+            import traceback
+            traceback.print_exc()
+        raise typer.Exit(1)
+
+
 if __name__ == '__main__':
     app()

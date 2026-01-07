@@ -3,6 +3,12 @@
 from .database import Database, DatabaseError
 from .http_client import AsyncHTTPClient, HTTPClientError
 from .metadata_cache import MetadataCache, CachedMetadataFetcher, MetadataCacheError
+from .migrations import (
+    MigrationManager,
+    MigrationError,
+    run_migrations,
+    show_migration_status,
+)
 
 __all__ = [
     "Database",
@@ -12,4 +18,8 @@ __all__ = [
     "MetadataCache",
     "CachedMetadataFetcher",
     "MetadataCacheError",
+    "MigrationManager",
+    "MigrationError",
+    "run_migrations",
+    "show_migration_status",
 ]

@@ -1,8 +1,8 @@
 <script lang="ts">
-	import { Badge } from '$lib/components/ui/badge';
 	import { MessageCircle, User } from 'lucide-svelte';
 	import type { ChatMessage } from '$lib/api/types';
 	import type { SearchResult } from '$lib/api/types';
+	import ChatSources from '$lib/custom/ChatSources.svelte';
 
 	interface Props {
 		message: ChatMessage;
@@ -11,17 +11,17 @@
 
 	const { message, sources = [] } = $props();
 
-	const isUser = message.role === 'user';
-	const isAssistant = message.role === 'assistant';
+	const isUser = () => message.role === 'user';
+	const isAssistant = () => message.role === 'assistant';
 </script>
 
-<div class="chat-message" class:user-message={isUser}>
+<div class="chat-message" class:user-message={isUser()}>
 	<div class="message-avatar">
-		{#if isUser}
+		{#if isUser()}
 			<div class="avatar-circle user-avatar">
 				<User size={18} />
 			</div>
-		{:else if isAssistant}
+		{:else if isAssistant()}
 			<div class="avatar-circle assistant-avatar">
 				<MessageCircle size={18} />
 			</div>
@@ -29,22 +29,15 @@
 	</div>
 
 	<div class="message-content-wrapper">
-		<div class="message-content" class:user-content={isUser} class:assistant-content={isAssistant}>
+		<div class="message-content" class:user-content={isUser()} class:assistant-content={isAssistant()}>
 			<p class="message-text">
 				{message.content}
 			</p>
 		</div>
 
-		{#if sources && sources.length > 0 && isAssistant}
+		{#if sources && sources.length > 0 && isAssistant()}
 			<div class="sources-section">
-				<p class="sources-label">Related datasets:</p>
-				<div class="sources-list">
-					{#each sources as source}
-						<Badge variant="outline" class="source-badge">
-							{source.dataset.title}
-						</Badge>
-					{/each}
-				</div>
+				<ChatSources {sources} />
 			</div>
 		{/if}
 	</div>
@@ -118,7 +111,7 @@
 		color: white;
 	}
 
-	.dark .user-content {
+	:global(.dark) .user-content {
 		background-color: #2563eb;
 	}
 
@@ -127,7 +120,7 @@
 		color: var(--foreground);
 	}
 
-	.dark .assistant-content {
+	:global(.dark) .assistant-content {
 		background-color: #1e293b;
 	}
 
@@ -138,30 +131,16 @@
 
 	.sources-section {
 		padding: 0.5rem 0;
+		width: 100%;
 	}
 
-	.sources-label {
-		font-size: 0.75rem;
-		font-weight: 600;
-		color: var(--muted-foreground);
-		margin: 0 0 0.5rem 0;
-		text-transform: uppercase;
-		letter-spacing: 0.05em;
-	}
-
-	.sources-list {
-		display: flex;
-		flex-wrap: wrap;
-		gap: 0.5rem;
-	}
-
-	.source-badge {
+	:global(.source-badge) {
 		font-size: 0.75rem;
 		cursor: pointer;
 		transition: background-color 200ms;
 	}
 
-	.source-badge:hover {
+	:global(.source-badge:hover) {
 		background-color: var(--primary);
 		color: var(--primary-foreground);
 	}
@@ -181,7 +160,7 @@
 			height: 1.75rem;
 		}
 
-		.avatar-circle svg {
+		:global(.avatar-circle svg) {
 			width: 1rem;
 			height: 1rem;
 		}

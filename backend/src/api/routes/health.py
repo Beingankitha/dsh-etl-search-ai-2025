@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
 from src.infrastructure.database import Database
+from src.services.embeddings import VectorStore
 from src.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -18,42 +19,112 @@ router = APIRouter(prefix="/health", tags=["health"])
 
 
 class HealthResponse(BaseModel):
-    """Health check response model."""
-    status: str = Field(..., description="Service status: 'healthy' or 'unhealthy'")
-    service: str = Field(..., description="Service name")
-    version: str = Field(..., description="API version")
-    dataset_count: Optional[int] = Field(None, description="Total datasets in database")
-    vector_count: Optional[int] = Field(None, description="Total vectors in store")
+    """Health check response model with comprehensive system status."""
+    status: str = Field(
+        ..., 
+        description="Service status: 'healthy' or 'unhealthy'",
+        example="healthy"
+    )
+    service: str = Field(
+        ..., 
+        description="Service name",
+        example="CEH Dataset Discovery API"
+    )
+    version: str = Field(
+        ..., 
+        description="API version",
+        example="1.0.0"
+    )
+    # Database counts
+    dataset_count: Optional[int] = Field(
+        None, 
+        description="Total datasets in database",
+        example=200
+    )
+    metadata_documents_count: Optional[int] = Field(
+        None, 
+        description="Total parsed metadata documents",
+        example=200
+    )
+    data_files_count: Optional[int] = Field(
+        None, 
+        description="Total data files associated with datasets",
+        example=452
+    )
+    supporting_documents_count: Optional[int] = Field(
+        None, 
+        description="Total supporting documents discovered",
+        example=1694
+    )
+    # Vector store counts
+    vector_dataset_count: Optional[int] = Field(
+        None, 
+        description="Total dataset vectors in vector store",
+        example=200
+    )
+    vector_supporting_docs_count: Optional[int] = Field(
+        None, 
+        description="Total supporting document vectors in vector store",
+        example=0
+    )
 
 
 @router.get("", response_model=HealthResponse)
 async def health_check() -> HealthResponse:
     """
-    Check API health and system status.
+    Check API health and system status with comprehensive diagnostics.
     
     Returns:
-        HealthResponse: Current health status with diagnostic counts
+        HealthResponse: Current health status with all diagnostic counts
+            - Database counts: datasets, metadata_documents, data_files, supporting_documents
+            - Vector store counts: dataset vectors, supporting doc vectors
     """
     try:
-        # Check database connectivity
+        # Check database connectivity and get counts
         db = Database()
         db.connect()
         
-        # Count datasets
-        dataset_count = db.session.query(
-            db.session.query(
-                db.get_table("datasets")
-            ).count()
-        ).scalar() if hasattr(db, 'get_table') else None
+        cursor = db.connection.cursor()
+        
+        # Count all database tables
+        cursor.execute("SELECT COUNT(*) FROM datasets")
+        dataset_count = cursor.fetchone()[0] if cursor else 0
+        
+        cursor.execute("SELECT COUNT(*) FROM metadata_documents")
+        metadata_count = cursor.fetchone()[0] if cursor else 0
+        
+        cursor.execute("SELECT COUNT(*) FROM data_files")
+        data_files_count = cursor.fetchone()[0] if cursor else 0
+        
+        cursor.execute("SELECT COUNT(*) FROM supporting_documents")
+        supporting_docs_count = cursor.fetchone()[0] if cursor else 0
         
         db.close()
+        
+        # Check vector store and get vector counts
+        vector_dataset_count = None
+        vector_supporting_docs_count = None
+        try:
+            vector_store = VectorStore()
+            vector_dataset_count = vector_store.get_dataset_count()
+            vector_supporting_docs_count = vector_store.get_supporting_docs_count()
+            logger.debug(
+                f"Vector store health: datasets={vector_dataset_count}, "
+                f"supporting_docs={vector_supporting_docs_count}"
+            )
+        except Exception as e:
+            logger.warning(f"Vector store not fully available: {e}")
         
         return HealthResponse(
             status="healthy",
             service="CEH Dataset Discovery API",
             version="1.0.0",
             dataset_count=dataset_count,
-            vector_count=None,  # Would query vector store if initialized
+            metadata_documents_count=metadata_count,
+            data_files_count=data_files_count,
+            supporting_documents_count=supporting_docs_count,
+            vector_dataset_count=vector_dataset_count,
+            vector_supporting_docs_count=vector_supporting_docs_count,
         )
         
     except Exception as e:
@@ -63,7 +134,11 @@ async def health_check() -> HealthResponse:
             service="CEH Dataset Discovery API",
             version="1.0.0",
             dataset_count=None,
-            vector_count=None,
+            metadata_documents_count=None,
+            data_files_count=None,
+            supporting_documents_count=None,
+            vector_dataset_count=None,
+            vector_supporting_docs_count=None,
         )
 
 

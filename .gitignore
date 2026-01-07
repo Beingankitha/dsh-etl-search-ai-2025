@@ -116,3 +116,10 @@ issues.txt
 docs/not-committed/
 docs/.DS_Store
 TESTING.md
+
+
+docker-compose.yml
+docker-deploy.sh
+backend/dockerfile
+frontend/dockerfile
+backend/ollama.app

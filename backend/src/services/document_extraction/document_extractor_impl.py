@@ -1,13 +1,14 @@
 """
 Concrete document text extractor implementations for different formats.
 
-Supports: PDF, DOCX, TXT, RTF
+Supports: PDF, DOCX, TXT, HTML
 """
 
 from pathlib import Path
 from typing import Optional
 
 from .document_extractor import DocumentExtractor, DocumentExtractorError
+from .html_extractor import HTMLExtractor
 from src.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -100,7 +101,7 @@ class UniversalDocumentExtractor(DocumentExtractor):
     Falls back to TextExtractor if format not recognized.
     """
     
-    SUPPORTED_MIMES = ["text/plain", "application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"]
+    SUPPORTED_MIMES = ["text/plain", "application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "text/html", "application/xhtml+xml"]
     
     def __init__(self):
         """Initialize with format-specific extractors."""
@@ -108,6 +109,9 @@ class UniversalDocumentExtractor(DocumentExtractor):
             '.txt': PlainTextExtractor(),
             '.pdf': PDFExtractor(),
             '.docx': DOCXExtractor(),
+            '.html': HTMLExtractor(),
+            '.htm': HTMLExtractor(),
+            '.xhtml': HTMLExtractor(),
         }
     
     async def extract(self, file_path: str | Path) -> str:

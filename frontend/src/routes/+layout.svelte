@@ -4,11 +4,18 @@
 	import favicon from '$lib/assets/favicon.svg';
 	import { page } from '$app/stores';
 	import { Search, MessageSquare } from 'lucide-svelte';
-	import { container } from '$lib/container';
+	import { container, initializeLogger } from '$lib/container';
+	import { enableDebugConsole } from '$lib/debug-console';
 
 	let { children } = $props();
 
 	const searchStore = container.getSearchStore();
+
+	// Initialize frontend logging on app startup
+	$effect.pre(() => {
+		initializeLogger();
+		enableDebugConsole();
+	});
 
 	interface NavItem {
 		icon: any;
@@ -49,7 +56,7 @@
 						class:active={isActive(item.href)}
 						title={item.title}
 					>
-						<svelte:component this={item.icon} size={20} />
+						<item.icon size={20} />
 					</a>
 				{/each}
 			</nav>

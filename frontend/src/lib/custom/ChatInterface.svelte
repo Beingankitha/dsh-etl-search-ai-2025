@@ -2,7 +2,7 @@
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
 	import ChatMessage from './ChatMessage.svelte';
-	import { Send, Trash2, Loader2 } from 'lucide-svelte';
+	import { Send, Trash2, Loader2, Maximize2, Minimize2 } from 'lucide-svelte';
 	import { container } from '$lib/container';
 	import { ApiError } from '$lib/api/errors';
 	import type { ChatMessage as ChatMessageType } from '$lib/api/types';
@@ -13,6 +13,8 @@
 	let messageInput = $state('');
 	let scrollContainer: HTMLDivElement | null = null;
 	let errorMessage = $state('');
+	let isFullscreen = $state(false);
+	let previousSize = $state<{ width: string; height: string } | null>(null);
 
 	const welcomeMessage: ChatMessageType = {
 		role: 'assistant',
@@ -70,32 +72,55 @@
 		}
 	}
 
+	function toggleFullscreen() {
+		isFullscreen = !isFullscreen;
+	}
+
 	$effect(() => {
 		if ($chatStore.messages.length > 0) {
 			autoScroll();
 		}
 	});
+
+	function getSources(messageIndex: number) {
+		return chatStore.getSources(messageIndex);
+	}
+
 </script>
 
-<div class="chat-interface">
+<div class="chat-interface" class:fullscreen={isFullscreen}>
 	<!-- Header -->
 	<div class="chat-header">
 		<h2 class="chat-title">Dataset Assistant</h2>
-		<Button
-			variant="ghost"
-			size="sm"
-			onclick={handleClear}
-			disabled={$chatStore.messages.length === 0 || $chatStore.loading}
-			title="Clear conversation"
-		>
-			<Trash2 size={18} />
-		</Button>
+		<div class="header-buttons">
+			<Button
+				variant="ghost"
+				size="sm"
+				onclick={toggleFullscreen}
+				title={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+			>
+				{#if isFullscreen}
+					<Minimize2 size={18} />
+				{:else}
+					<Maximize2 size={18} />
+				{/if}
+			</Button>
+			<Button
+				variant="ghost"
+				size="sm"
+				onclick={handleClear}
+				disabled={$chatStore.messages.length === 0 || $chatStore.loading}
+				title="Clear conversation"
+			>
+				<Trash2 size={18} />
+			</Button>
+		</div>
 	</div>
 
 	<!-- Messages Container -->
 	<div class="messages-container" bind:this={scrollContainer}>
-		{#each $chatStore.messages as message}
-			<ChatMessage {message} />
+		{#each $chatStore.messages as message, index}
+			<ChatMessage {message} sources={getSources(index)} />
 		{/each}
 
 		{#if $chatStore.loading}
@@ -144,6 +169,31 @@
 		flex-direction: column;
 		height: 100%;
 		max-height: calc(100vh - 150px);
+		transition: all 0.3s ease;
+	}
+
+	.chat-interface.fullscreen {
+		position: fixed;
+		top: 0;
+		left: 0;
+		width: 100% !important;
+		height: 100vh !important;
+		max-height: 100vh !important;
+		z-index: 10000;
+		border-radius: 0;
+		box-shadow: none;
+		transition: all 0.3s ease;
+	}
+
+	.chat-interface.fullscreen::before {
+		content: '';
+		position: fixed;
+		top: 0;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		background: rgba(255, 255, 255, 0.934);
+		z-index: -1;
 	}
 
 	.chat-header {
@@ -153,6 +203,12 @@
 		padding: 1rem;
 		border-bottom: 1px solid var(--border);
 		background-color: var(--secondary);
+	}
+
+	.header-buttons {
+		display: flex;
+		gap: 0.5rem;
+		align-items: center;
 	}
 
 	.chat-title {
@@ -230,7 +286,7 @@
 		font-size: 0.875rem;
 	}
 
-	.dark .error-message {
+	:global(.dark) .error-message {
 		background-color: #7f1d1d;
 		border-color: #991b1b;
 		color: #fca5a5;
@@ -248,13 +304,13 @@
 		max-width: 100%;
 	}
 
-	.message-input {
+	:global(.message-input) {
 		flex: 1;
 		height: 2.75rem;
 		resize: none;
 	}
 
-	.send-button {
+	:global(.send-button) {
 		height: 2.75rem;
 		min-width: 3rem;
 		padding: 0 1.5rem;
@@ -272,11 +328,11 @@
 			padding: 1rem;
 		}
 
-		.message-input {
+		:global(.message-input) {
 			font-size: 0.875rem;
 		}
 
-		.send-button {
+		:global(.send-button) {
 			min-width: 2.75rem;
 			padding: 0 1rem;
 		}

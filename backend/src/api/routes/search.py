@@ -29,6 +29,9 @@ def get_search_service() -> SearchService:
     Creates a fresh UnitOfWork per request to ensure thread-safety with SQLite.
     SQLite connections cannot be shared across threads, so we create a new
     connection for each request.
+    
+    Note: The SearchService will handle connection cleanup internally
+    when properly integrated with context managers.
     """
     embedding_service = EmbeddingService()
     vector_store = VectorStore()
@@ -38,9 +41,10 @@ def get_search_service() -> SearchService:
     settings = get_settings()
     database = Database(settings.database_path)
     database.connect()
+    
+    # Create UnitOfWork WITHOUT entering context manager
+    # The search_service will enter the context manager when needed
     unit_of_work = UnitOfWork(database)
-    # Initialize repositories with this connection
-    unit_of_work.__enter__()
     
     return SearchService(
         embedding_service=embedding_service,

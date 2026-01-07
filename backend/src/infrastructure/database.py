@@ -112,7 +112,38 @@ class Database:
             logger.info("Database connection closed")
 
     def create_tables(self) -> None:
-        """Create all database tables."""
+        """
+        Create all database tables using migration system.
+        
+        This method now delegates to the migration system for proper
+        schema versioning and evolution. Use this during initialization.
+        """
+        if not self.connection:
+            self.connect()
+
+        try:
+            from src.infrastructure.migrations import run_migrations
+            
+            logger.info("Running database migrations...")
+            successful, failed = run_migrations(self.connection)
+            
+            if failed > 0:
+                raise DatabaseError(f"Migration failed: {failed} migration(s) failed")
+            
+            if successful > 0:
+                logger.info(f"Applied {successful} new migration(s)")
+            
+        except Exception as e:
+            logger.error(f"Migration failed: {e}")
+            raise DatabaseError(f"Schema creation failed: {e}") from e
+
+    def create_tables_legacy(self) -> None:
+        """
+        Legacy method for direct table creation (deprecated).
+        
+        Use create_tables() instead which uses the migration system.
+        This is kept for backward compatibility.
+        """
         if not self.connection:
             self.connect()
 

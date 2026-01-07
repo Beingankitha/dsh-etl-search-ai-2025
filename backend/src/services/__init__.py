@@ -5,6 +5,7 @@ Organized into logical submodules:
 - parsers: Metadata format parsers (ISO19139, JSON, RDF, Schema.org)
 - extractors: Data extraction (CEH API, web folders, ZIP files)
 - document_extraction: Text extraction (PDF, DOCX, TXT)
+- metadata_enrichment: Keywords and topic extraction
 - supporting_documents: URL discovery and file downloading
 - architecture: System design documentation
 """
@@ -55,6 +56,13 @@ from .document_extraction import (
     DOCXExtractor,
     TXTExtractor,
     UniversalDocumentExtractor,
+)
+
+# Metadata Enrichment Module
+from .metadata_enrichment import (
+    KeywordExtractor,
+    TopicCategoryClassifier,
+    MetadataEnricher,
 )
 
 # Supporting Documents Module
@@ -109,6 +117,10 @@ __all__ = [
     "DOCXExtractor",
     "TXTExtractor",
     "UniversalDocumentExtractor",
+    # Metadata Enrichment Module
+    "KeywordExtractor",
+    "TopicCategoryClassifier",
+    "MetadataEnricher",
     # Supporting Documents Module
     "SupportingDocDiscoverer",
     "SupportingDocURLs",
