@@ -1,5 +1,5 @@
 """
-Pytest configuration and shared fixtures.
+Pytest configuration and shared fixtures for E2E tests.
 
 Disables observability/tracing during tests to avoid hangs.
 """

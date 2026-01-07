@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { Search, Loader2 } from 'lucide-svelte';
 	import { Input } from '$lib/components/ui/input';
+	import { container } from '$lib/container';
+	import { onDestroy } from 'svelte';
 
 	interface Props {
 		value?: string;
@@ -14,7 +16,14 @@
 	let showSuggestions = $state(false);
 	let suggestionsLoading = $state(false);
 	let selectedIndex = $state(-1);
+	let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+	let abortController: AbortController | null = $state(null);
+	const searchService = container.getSearchService();
 
+	/**
+	 * Fetch suggestions using the service layer
+	 * Includes request cancellation to prevent stale requests
+	 */
 	async function fetchSuggestions(query: string) {
 		if (!query.trim() || query.length < 1) {
 			suggestions = [];
@@ -22,31 +31,26 @@
 			return;
 		}
 
+		// Cancel previous request if still pending
+		if (abortController !== null) {
+			abortController.abort();
+		}
+		
+		// Create new abort controller for this request
+		abortController = new AbortController();
+
 		suggestionsLoading = true;
 		try {
-			// Use the API base URL from environment or default to localhost:8000
-			const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-			const response = await fetch(
-				`${apiBase}/api/search/suggestions?q=${encodeURIComponent(query)}`,
-				{
-					method: 'GET',
-					headers: {
-						'Content-Type': 'application/json',
-					},
-					mode: 'cors',
-				}
-			);
-			
-			if (!response.ok) {
-				throw new Error(`HTTP error! status: ${response.status}`);
-			}
-			
-			const data = await response.json();
-			suggestions = data.suggestions || [];
+			// Use service layer for suggestions
+			const result = await searchService.getSuggestions(query, 8);
+			suggestions = result;
 			showSuggestions = suggestions.length > 0;
 			selectedIndex = -1;
 		} catch (error) {
-			console.error('Error fetching suggestions:', error);
+			// Only log errors if not aborted
+			if (error instanceof Error && error.name !== 'AbortError') {
+				console.debug('Suggestions fetch error (non-critical):', error);
+			}
 			suggestions = [];
 			showSuggestions = false;
 		} finally {
@@ -54,18 +58,31 @@
 		}
 	}
 
+	/**
+	 * Handle input with debouncing
+	 * Prevents excessive API calls while typing
+	 */
 	function handleInput(e: Event) {
 		const target = e.target as HTMLInputElement;
 		value = target.value;
 		
-		// Debounce suggestions
-		clearTimeout(debounceTimer);
+		// Clear previous debounce
+		if (debounceTimer) clearTimeout(debounceTimer);
+		
+		// Set new debounce timeout
 		debounceTimer = setTimeout(() => {
 			fetchSuggestions(value);
+			debounceTimer = null;
 		}, 300);
 	}
 
-	let debounceTimer: NodeJS.Timeout;
+	/**
+	 * Cleanup on component destroy
+	 */
+	onDestroy(() => {
+		if (debounceTimer) clearTimeout(debounceTimer);
+		if (abortController !== null) abortController.abort();
+	});
 
 	function handleSubmit() {
 		if (value.trim()) {
