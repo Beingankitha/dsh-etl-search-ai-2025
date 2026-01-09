@@ -40,13 +40,13 @@ class Settings(BaseSettings):
 
     # CEH API Configuration (Issue #4)
     ceh_api_base_url: str = "https://catalogue.ceh.ac.uk"
-    ceh_api_timeout: int = 300  # Increased to 300s for large data file downloads
-    ceh_api_max_retries: int = 3
-    ceh_api_retry_delay: int = 1
+    ceh_api_timeout: int = 600  # Increased to 600s (10 min) for large data file downloads & server delays
+    ceh_api_max_retries: int = 5  # Increased from 3 to 5 for better resilience
+    ceh_api_retry_delay: int = 2  # Increased from 1 to 2 for server recovery time
 
     # HTTP Client Configuration
-    http_timeout: int = 300  # Increased to 300s (5 min) for large data file downloads
-    http_max_retries: int = 3
+    http_timeout: int = 600  # Increased to 600s (10 min) for large data file downloads & server delays
+    http_max_retries: int = 5  # Increased from 3 to 5 for better resilience
     http_retry_backoff_factor: float = 0.5
 
     # Supporting Documents Configuration (Issue #4)

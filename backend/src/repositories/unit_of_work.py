@@ -165,8 +165,7 @@ class UnitOfWork:
             if in_transaction:
                 self._connection.commit()
                 logger.info("Transaction committed (all changes persisted)")
-            else:
-                logger.debug("No active transaction to commit")
+            # else: No active transaction (empty transaction), silently continue
                 
         except sqlite3.Error as e:
             logger.error(f"Commit failed: {e}")
@@ -193,8 +192,7 @@ class UnitOfWork:
             if in_transaction:
                 self._connection.rollback()
                 logger.info("Transaction rolled back (all changes discarded)")
-            else:
-                logger.debug("No active transaction to rollback")
+            # else: No active transaction (empty transaction), silently continue
                 
         except sqlite3.Error as e:
             logger.error(f"Rollback failed: {e}")

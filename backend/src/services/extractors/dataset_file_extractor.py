@@ -62,6 +62,9 @@ class DatasetFileExtractor:
         # Documents
         ".txt", ".md", ".pdf",  # Documents
         ".rst",  # reStructuredText
+        ".doc", ".docx",  # Microsoft Word documents
+        ".ppt", ".pptx",  # Microsoft PowerPoint
+        ".odt", ".odp",  # OpenDocument formats
         
         # Code
         ".py", ".r", ".m", ".sql",  # Analysis code
@@ -192,11 +195,13 @@ class DatasetFileExtractor:
                     logger.error(f"[{identifier}] ZIP processing failed: {e}")
                     stats["errors"].append(f"ZIP processing: {str(e)}")
 
-            # Step 3: Process fileaccess URLs (web folders) - future enhancement
+            # Step 3: Process fileaccess URLs (web folders) - NOT YET IMPLEMENTED
+            # These are URLs ending with / that might be directory listings
+            # But many are just websites (like eidc.ac.uk) not actual web folders
             if fileaccess_urls:
                 logger.debug(
                     f"[{identifier}] Found {len(fileaccess_urls)} fileaccess URLs "
-                    "(web folder traversal not yet implemented)"
+                    "(directory traversal requires validation - skipped)"
                 )
 
             logger.info(

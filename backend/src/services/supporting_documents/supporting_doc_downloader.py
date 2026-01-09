@@ -124,7 +124,7 @@ class SupportingDocDownloader:
 
     async def download_batch(self, urls: list[str]) -> list[tuple[str, Path]]:
         """
-        Download multiple files, skipping failures.
+        Download multiple files, skipping failures and duplicates.
         
         Args:
             urls: List of file URLs to download
@@ -133,8 +133,15 @@ class SupportingDocDownloader:
             List of tuples (url, path) for successfully downloaded files
         """
         downloaded_items = []
+        seen_urls = set()  # FIXED: Track already processed URLs to avoid duplicates
         
         for url in urls:
+            # Skip duplicate URLs
+            if url in seen_urls:
+                logger.debug(f"Skipping duplicate URL: {url}")
+                continue
+            seen_urls.add(url)
+            
             try:
                 path = await self.download(url)
                 if path:
@@ -149,7 +156,7 @@ class SupportingDocDownloader:
 
     def _get_cache_path(self, url: str) -> Path:
         """
-        Generate cache file path from URL.
+        Generate cache file path from URL, preserving file extension.
 
         Args:
             url: File URL
@@ -158,12 +165,31 @@ class SupportingDocDownloader:
             Path to cache file
         """
         parsed = urlparse(url)
+        
+        # Extract filename from path
         filename = Path(parsed.path).name
-
-        # Generate hash if:
-        # 1. No filename extracted, OR
-        # 2. Filename has no extension (not a real file)
+        
+        # If no filename, try to infer from content-type or use URL hash
         if not filename or "." not in filename:
-            filename = hashlib.md5(url.encode()).hexdigest()
-
+            # Try to infer extension from URL query parameters (e.g., ?format=html)
+            query_params = parsed.query.lower()
+            
+            # Common extensions inference
+            ext = ''
+            if 'html' in query_params or 'format=html' in query_params:
+                ext = '.html'
+            elif 'json' in query_params:
+                ext = '.json'
+            elif 'xml' in query_params:
+                ext = '.xml'
+            elif 'pdf' in query_params:
+                ext = '.pdf'
+            else:
+                # No extension for API endpoints without determinable format
+                ext = ''
+            
+            # Use URL hash + extension
+            url_hash = hashlib.md5(url.encode()).hexdigest()
+            filename = url_hash + ext
+        
         return self.cache_dir / filename

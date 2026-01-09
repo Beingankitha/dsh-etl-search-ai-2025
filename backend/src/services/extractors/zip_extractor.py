@@ -78,26 +78,54 @@ class ZipExtractor:
                     logger.warning(f"Corrupted file in ZIP: {bad_file}")
                     # Continue anyway, extract what we can
 
+                # Log all files found in ZIP
+                all_files = []
+                skipped_files = []
                 files = {}
+                
                 for file_info in zf.filelist:
                     # Skip directories
                     if file_info.is_dir():
                         continue
 
                     file_path = file_info.filename
+                    file_ext = Path(file_path).suffix.lower()
+                    file_size = file_info.file_size
+                    
+                    # Track all files found
+                    all_files.append((file_path, file_ext, file_size))
 
                     # Apply filter if provided
                     if file_filter and not file_filter(file_path):
+                        reason = "filtered by file_filter"
+                        skipped_files.append((file_path, file_ext, file_size, reason))
+                        logger.debug(f"Skipped: {file_path} ({file_ext}, {file_size} bytes) - {reason}")
                         continue
 
                     try:
                         content = zf.read(file_path)
                         files[file_path] = content
-                        logger.debug(f"Extracted: {file_path} ({len(content)} bytes)")
+                        logger.debug(f"Extracted: {file_path} ({file_ext}, {len(content)} bytes)")
                     except Exception as e:
                         logger.warning(f"Failed to extract {file_path}: {e}")
+                        skipped_files.append((file_path, file_ext, file_size, f"extraction error: {e}"))
                         # Continue on individual file failures
                         continue
+
+                logger.info(f"ZIP Contents Summary:")
+                logger.info(f"  Total files found: {len(all_files)}")
+                logger.info(f"  Files extracted: {len(files)}")
+                logger.info(f"  Files skipped: {len(skipped_files)}")
+                
+                if all_files:
+                    logger.info(f"  All files in ZIP:")
+                    for path, ext, size in all_files:
+                        logger.info(f"    - {path} ({ext}, {size} bytes)")
+                
+                if skipped_files:
+                    logger.info(f"  Skipped files:")
+                    for path, ext, size, reason in skipped_files:
+                        logger.info(f"    - {path} ({ext}, {size} bytes) - {reason}")
 
                 logger.info(f"Extracted {len(files)} files from ZIP")
                 return files

@@ -123,3 +123,4 @@ docker-deploy.sh
 backend/dockerfile
 frontend/dockerfile
 backend/ollama.app
+backend/data-old/

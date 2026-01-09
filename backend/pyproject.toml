@@ -38,6 +38,8 @@ dependencies = [
     "opentelemetry-instrumentation>=0.42b0",
     "deprecated>=1.2.0",
     "torch>=2.2.0",
+    "html2text==2025.4.15",
+    "pypdf2==3.0.1",
 ]
 
 [dependency-groups]

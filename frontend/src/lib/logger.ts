@@ -320,7 +320,7 @@ class Logger {
     window.fetch = async (...args: Parameters<typeof fetch>) => {
       const startTime = performance.now();
       const [resource, config] = args;
-      const url = typeof resource === 'string' ? resource : (resource instanceof Request ? resource.url : String(resource));
+      const url = typeof resource === 'string' ? resource : resource.url;
       const method = (config?.method as string) || 'GET';
 
       try {

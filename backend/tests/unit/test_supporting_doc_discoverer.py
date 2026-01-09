@@ -26,7 +26,10 @@ async def test_discover_urls_from_json():
 
     assert len(result.supporting_docs) == 1  # PDF
     assert len(result.download_urls) == 1  # ZIP
-    assert len(result.fileaccess_urls) == 1  # folder
+    # Folder URLs (ending with /) are NOT automatically classified as fileaccess_urls
+    # They must have "fileaccess" or "/directory/" in the URL
+    # So the folder/ URL is skipped entirely
+    assert len(result.fileaccess_urls) == 0
 
 
 @pytest.mark.asyncio
