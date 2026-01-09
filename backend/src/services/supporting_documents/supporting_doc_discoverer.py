@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import re
+from pathlib import Path
 from typing import Optional, List
 from urllib.parse import urljoin, urlparse
 
@@ -197,7 +198,9 @@ class SupportingDocDiscoverer:
             return
 
         # Check if it's a web folder/directory access
-        if "fileaccess" in url.lower() or "/directory/" in url.lower() or url.endswith("/"):
+        # Only classify as fileaccess if explicitly marked or is a known directory pattern
+        # Do NOT classify website homepages (like eidc.ac.uk/) as fileaccess
+        if "fileaccess" in url.lower() or "/directory/" in url.lower():
             self.urls.fileaccess_urls.append(url)
             return
 
@@ -206,8 +209,27 @@ class SupportingDocDiscoverer:
             self.urls.metadata_urls.append(url)
             return
 
-        # Default: supporting document
-        self.urls.supporting_docs.append(url)
+        # FIXED: Exclude HTML pages and other web content
+        # These should NOT be stored as supporting documents
+        if re.search(r"\.(html|htm|asp|aspx|php|jsp|cgi|py|js|css)$", url, re.IGNORECASE):
+            logger.debug(f"Skipping web page: {url}")
+            return
+        
+        # Exclude common web domain URLs without file extensions
+        # (e.g., orcid.org, eidc.ac.uk, etc.) - these are landing pages
+        parsed = urlparse(url)
+        path = parsed.path.rstrip('/')
+        if not path or path == '':
+            logger.debug(f"Skipping domain/landing page: {url}")
+            return
+
+        # Only add if it looks like a real document with extension
+        # or is a known document URL pattern
+        if Path(path).suffix or 'document' in url.lower() or 'file' in url.lower():
+            # Default: supporting document
+            self.urls.supporting_docs.append(url)
+        else:
+            logger.debug(f"Skipping non-document URL: {url}")
 
     async def discover(
         self, 

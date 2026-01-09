@@ -572,7 +572,10 @@ class ETLService:
                 logger.debug(f"[{identifier}] No supporting documents found")
                 return 0
             
-            num_docs = len(doc_urls)
+            # FIXED: Deduplicate URLs before downloading
+            unique_doc_urls = list(dict.fromkeys(doc_urls))  # Preserves order while removing duplicates
+            
+            num_docs = len(unique_doc_urls)
             self.report['supporting_docs_found'] += num_docs
             logger.info(f"[{identifier}] Found {num_docs} supporting documents")
             if self.verbose:
@@ -580,7 +583,7 @@ class ETLService:
             
             # Download documents
             try:
-                downloaded_items = await self.doc_downloader.download_batch(doc_urls)
+                downloaded_items = await self.doc_downloader.download_batch(unique_doc_urls)
                 
                 if not downloaded_items:
                     logger.debug(f"[{identifier}] No documents were downloaded")
@@ -594,19 +597,20 @@ class ETLService:
                 
                 # Extract text from each document
                 text_count = 0
-                for url, doc_path in downloaded_items:
-                    try:
-                        # ✅ FIXED: Use correct method name 'extract' not 'extract_text'
-                        text_content = await self.text_extractor.extract(Path(doc_path))
-                        
-                        if text_content and not self.dry_run:
-                            # Get the actual dataset record ID
-                            async with self.unit_of_work:
-                                dataset = self.unit_of_work.datasets.get_by_file_identifier(identifier)
-                                if not dataset:
-                                    logger.warning(f"[{identifier}] Dataset not found for supporting doc")
-                                    continue
-                                
+                
+                # FIXED: Use single transaction for all supporting docs in this dataset
+                async with self.unit_of_work:
+                    dataset = self.unit_of_work.datasets.get_by_file_identifier(identifier)
+                    if not dataset:
+                        logger.warning(f"[{identifier}] Dataset not found for supporting docs")
+                        return 0
+                    
+                    for url, doc_path in downloaded_items:
+                        try:
+                            # ✅ FIXED: Use correct method name 'extract' not 'extract_text'
+                            text_content = await self.text_extractor.extract(Path(doc_path))
+                            
+                            if text_content and not self.dry_run:
                                 # Store supporting document with correct foreign key
                                 supporting_doc = SupportingDocument(
                                     dataset_id=dataset.id,
@@ -618,15 +622,17 @@ class ETLService:
                                     created_at=datetime.now(timezone.utc).isoformat()
                                 )
                                 self.unit_of_work.supporting_documents.insert(supporting_doc)
-                                self.unit_of_work.commit()
                                 logger.debug(f"[{identifier}] Stored supporting document: {Path(doc_path).name}")
-                        
-                        text_count += 1
-                        self.report['text_extracted'] += 1
-                        
-                    except Exception as e:
-                        logger.warning(f"[{identifier}] Failed to extract text from {doc_path}: {e}")
-                        continue
+                            
+                            text_count += 1
+                            self.report['text_extracted'] += 1
+                            
+                        except Exception as e:
+                            logger.warning(f"[{identifier}] Failed to extract text from {doc_path}: {e}")
+                            continue
+                    
+                    # FIXED: Single commit for all documents
+                    self.unit_of_work.commit()
                 
                 if self.verbose and text_count > 0:
                     self._print_with_identifier(identifier, f"✓ Extracted text from {text_count} docs")

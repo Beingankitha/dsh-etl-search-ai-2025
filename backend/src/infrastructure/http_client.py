@@ -197,10 +197,15 @@ class AsyncHTTPClient:
             raise HTTPClientError(f"HTTP error: {e}") from e
         finally:
             self._release_slot()
-
+    @retry(
+        retry=retry_if_exception_type((aiohttp.ClientError, asyncio.TimeoutError)),
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=1, max=10),
+        reraise=True,
+    )
     async def get_bytes(self, url: str, request_id: Optional[str] = None, **kwargs) -> bytes:
         """
-        GET request returning raw bytes (for binary files) with concurrency limiting.
+        GET request returning raw bytes (for binary files) with concurrency limiting and retry logic.
 
         Args:
             url: Request URL
@@ -224,7 +229,16 @@ class AsyncHTTPClient:
                 headers["X-Request-ID"] = request_id
 
             logger.info(f"GET (bytes) {url}", extra={"request_id": request_id})
-            async with self.session.get(url, headers=headers, **kwargs) as response:
+            async with self.session.get(url, headers=headers, timeout=self.timeout, **kwargs) as response:
+                # Handle HTTP errors (including 504 Gateway Timeout)
+                if response.status >= 500:
+                    # Server error - retry these
+                    logger.warning(
+                        f"Server error {response.status} on GET {url}, will retry",
+                        extra={"request_id": request_id}
+                    )
+                    raise aiohttp.ClientError(f"HTTP {response.status}: {response.reason}")
+                
                 response.raise_for_status()
                 data = await response.read()
                 logger.info(
@@ -233,10 +247,10 @@ class AsyncHTTPClient:
                 )
                 return data
         except asyncio.TimeoutError as e:
-            logger.error(f"Timeout on GET {url}", extra={"request_id": request_id})
+            logger.error(f"Timeout on GET {url}, retrying...", extra={"request_id": request_id})
             raise HTTPTimeoutError(f"Request timeout: {url}") from e
         except aiohttp.ClientError as e:
-            logger.error(f"HTTP error on GET {url}: {e}", extra={"request_id": request_id})
+            logger.error(f"HTTP error on GET {url}: {e}, will retry", extra={"request_id": request_id})
             raise HTTPClientError(f"HTTP error: {e}") from e
         finally:
             self._release_slot()
