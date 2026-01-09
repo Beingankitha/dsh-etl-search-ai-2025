@@ -170,6 +170,11 @@ def mock_unit_of_work(sample_db_dataset):
     
     mock_repo.get_by_file_identifier = get_by_file_identifier
     uow.datasets = mock_repo
+    
+    # Make UnitOfWork support context manager protocol for 'with' statement
+    uow.__enter__ = Mock(return_value=uow)
+    uow.__exit__ = Mock(return_value=False)
+    
     return uow
 
 
