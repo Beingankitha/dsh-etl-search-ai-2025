@@ -390,6 +390,10 @@ class TextChunker:
             if chunk:  # Only add non-empty chunks
                 chunks.append(chunk)
             
+            # If we reached the end, stop
+            if end >= len(text):
+                break
+            
             # Move start position (with overlap)
             start = end - self.overlap
         

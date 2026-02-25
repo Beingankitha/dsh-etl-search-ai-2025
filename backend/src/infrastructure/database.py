@@ -208,7 +208,8 @@ class Database:
                     embedding_id TEXT,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    FOREIGN KEY (dataset_id) REFERENCES datasets(id) ON DELETE CASCADE
+                    FOREIGN KEY (dataset_id) REFERENCES datasets(id) ON DELETE CASCADE,
+                    UNIQUE(dataset_id, document_url)
                 )
             """)
 

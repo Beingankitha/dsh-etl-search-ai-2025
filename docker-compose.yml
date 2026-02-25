@@ -1,0 +1,63 @@
+version: '3.8'
+
+services:
+  # Backend FastAPI service
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: dsh-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - API_HOST=0.0.0.0
+      - API_PORT=8000
+      - DATABASE_PATH=/app/data/datasets.db
+      - CHROMA_PATH=/app/data/chroma
+      - EMBEDDING_MODEL=all-MiniLM-L6-v2
+      - LOG_LEVEL=INFO
+      - APP_ENV=production
+      - DEBUG=false
+    volumes:
+      - dsh_data:/app/data
+      - dsh_logs:/app/logs
+    restart: unless-stopped
+    networks:
+      - dsh_network
+    depends_on:
+      - data_volume_init
+
+  # Frontend SvelteKit service
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: dsh-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - VITE_API_URL=http://backend:8000
+      - NODE_ENV=production
+    restart: unless-stopped
+    networks:
+      - dsh_network
+    depends_on:
+      - backend
+
+  # Data volume initialization (ensures data directory exists)
+  data_volume_init:
+    image: busybox:latest
+    container_name: dsh_data_init
+    volumes:
+      - dsh_data:/data
+    command: sh -c "mkdir -p /data/chroma /data/metadata_cache && ls -la /data"
+
+volumes:
+  dsh_data:
+    driver: local
+  dsh_logs:
+    driver: local
+
+networks:
+  dsh_network:
+    driver: bridge

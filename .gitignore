@@ -118,9 +118,9 @@ docs/.DS_Store
 TESTING.md
 
 
-docker-compose.yml
+# docker-compose.yml
 docker-deploy.sh
-backend/dockerfile
-frontend/dockerfile
+# backend/dockerfile
+# frontend/dockerfile
 backend/ollama.app
 backend/data-old/

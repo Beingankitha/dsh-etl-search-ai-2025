@@ -710,6 +710,9 @@ def vectorize_supporting_docs(
         uv run dsh-etl vectorize-supporting-docs
     """
     
+    # Initialize logging with proper configuration
+    setup_logging(log_level="DEBUG" if verbose else "INFO")
+    
     if verbose:
         logging.getLogger().setLevel(logging.DEBUG)
         console.print("[bold cyan]✓ Verbose logging enabled (DEBUG)[/bold cyan]")

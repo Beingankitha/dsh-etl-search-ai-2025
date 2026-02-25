@@ -621,7 +621,7 @@ class ETLService:
                                     text_content=text_content,
                                     created_at=datetime.now(timezone.utc).isoformat()
                                 )
-                                self.unit_of_work.supporting_documents.insert(supporting_doc)
+                                self.unit_of_work.supporting_documents.upsert_by_url(supporting_doc)
                                 logger.debug(f"[{identifier}] Stored supporting document: {Path(doc_path).name}")
                             
                             text_count += 1

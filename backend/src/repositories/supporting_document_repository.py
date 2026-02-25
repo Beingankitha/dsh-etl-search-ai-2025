@@ -107,3 +107,92 @@ class SupportingDocumentRepository(BaseRepository[SupportingDocument]):
         except sqlite3.Error as e:
             logger.error(f"Count failed: {e}")
             raise RepositoryError(f"Query failed: {e}") from e
+
+    def upsert_by_url(self, entity: SupportingDocument) -> SupportingDocument:
+        """
+        Insert or update a supporting document by URL.
+        
+        Prevents duplicates by checking if (dataset_id, document_url) combination exists.
+        If exists: updates the document with new text_content and other fields.
+        If not exists: inserts a new document.
+
+        Args:
+            entity: SupportingDocument entity to upsert
+
+        Returns:
+            The inserted/updated SupportingDocument entity with ID
+
+        Raises:
+            RepositoryError: If database operation fails
+        """
+        try:
+            # Check if document already exists for this dataset and URL
+            query = f"""
+                SELECT * FROM {self.table_name} 
+                WHERE dataset_id = ? AND document_url = ?
+            """
+            cursor = self.connection.execute(
+                query, 
+                (entity.dataset_id, entity.document_url)
+            )
+            existing_row = cursor.fetchone()
+
+            if existing_row:
+                # Update existing document
+                existing_entity = self._map_row_to_entity(existing_row)
+                entity.id = existing_entity.id  # Preserve ID
+                entity.created_at = existing_entity.created_at  # Preserve creation time
+                
+                update_query = f"""
+                    UPDATE {self.table_name} 
+                    SET text_content = ?, 
+                        title = ?, 
+                        file_extension = ?, 
+                        downloaded_path = ?, 
+                        embedding_id = ?,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE id = ?
+                """
+                self.connection.execute(
+                    update_query,
+                    (
+                        entity.text_content,
+                        entity.title,
+                        entity.file_extension,
+                        entity.downloaded_path,
+                        entity.embedding_id,
+                        entity.id
+                    )
+                )
+                logger.debug(f"Updated supporting document: {entity.document_url} (ID: {entity.id})")
+            else:
+                # Insert new document
+                insert_query = f"""
+                    INSERT INTO {self.table_name}
+                    (dataset_id, document_url, title, file_extension, 
+                     downloaded_path, text_content, embedding_id, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                """
+                cursor = self.connection.execute(
+                    insert_query,
+                    (
+                        entity.dataset_id,
+                        entity.document_url,
+                        entity.title,
+                        entity.file_extension,
+                        entity.downloaded_path,
+                        entity.text_content,
+                        entity.embedding_id
+                    )
+                )
+                entity.id = cursor.lastrowid
+                logger.debug(f"Inserted supporting document: {entity.document_url} (ID: {entity.id})")
+
+            return entity
+
+        except sqlite3.IntegrityError as e:
+            logger.error(f"Integrity error during upsert: {e}")
+            raise RepositoryError(f"Upsert failed due to constraint violation: {e}") from e
+        except sqlite3.Error as e:
+            logger.error(f"Upsert failed: {e}")
+            raise RepositoryError(f"Upsert failed: {e}") from e

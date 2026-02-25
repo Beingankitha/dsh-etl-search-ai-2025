@@ -1,0 +1,58 @@
+
+"Show me all datasets related to water quality monitoring in rivers across the United Kingdom collected between 2010 and 2020"
+
+Tests: geographic area, topic specificity, time range filtering
+
+
+
+"What datasets are available for studying the impact of climate change on biodiversity in Scotland?"
+
+Tests: thematic search, geographic specificity, multi-topic relationships
+
+
+
+"Find datasets about soil moisture measurements that include high-resolution spatial data with daily or hourly temporal resolution"
+
+Tests: dataset characteristics (format, resolution), specific technical requirements
+
+
+
+"I'm researching precipitation patterns during extreme weather events. What relevant datasets do you have, and can you explain how they relate to each other?"
+
+Tests: conversational tone, relationship analysis between datasets
+
+
+
+"List all ecological datasets from the COSMOS-UK network that include supporting documentation about sensor calibration methods"
+
+Tests: specific network/project, supporting document content search
+
+
+
+"What environmental datasets cover the Lake District region and what file formats are they available in?"
+
+Tests: specific geographic area, format availability
+
+
+
+"Show me datasets about greenhouse gas emissions from agricultural land, and explain the differences in their methodologies"
+
+Tests: sector-specific search (agriculture), methodology understanding from abstracts
+
+
+
+"I found dataset X about air quality. Can you suggest related datasets that cover similar geographic areas or time periods?"
+
+Tests: reference to previous results, similarity search, relationship discovery
+
+
+
+"What long-term environmental monitoring datasets span more than 20 years and include metadata about data quality control procedures?"
+
+Tests: temporal characteristics, metadata quality assessment
+
+
+
+"Find datasets suitable for machine learning applications in environmental modeling that include training data and comprehensive documentation"
+
+Tests: specific use case (ML/AI), documentation completeness, data format suitability
