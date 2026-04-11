@@ -381,8 +381,6 @@ CEH API
 
 ## License & Attribution
 
-This project is part of coding stage 1 interview process for RSE designation at university of Manchester
-
 **Built with:**
 - Python & FastAPI ecosystem
 - SvelteKit & modern web stack
@@ -390,9 +388,5 @@ This project is part of coding stage 1 interview process for RSE designation at 
 - ChromaDB for vector search
 
 ---
-
-**Last Updated:** January 9, 2025  
-**Status:** Production Ready  
-**Version:** 1.0
 
 For detailed setup, configuration, and troubleshooting, see component-specific READMEs.
