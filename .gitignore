@@ -114,6 +114,7 @@ backend.git.bak
 Task.txt
 issues.txt
 docs/not-committed/
+docs/
 docs/.DS_Store
 TESTING.md
 
